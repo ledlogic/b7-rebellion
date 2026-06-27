@@ -20,6 +20,8 @@ Both shipped tiers verified to play correctly in 2/3/4/5/7-player smoke tests, w
 
 | Version | Changes |
 |---|---|
+| **2.18** | Card data model split out of `engine.js` into new `card.js` (RANKS, SUITS, `buildDeck`, `cardMeta`, `cardLabel`, `cardName`, `basePoints`, `isJoker`, `isPrime`, `isNumbered`, `isHeart` family, `pileHas`). `engine.js` retains game flow (`dealMission`, `resolveTrickWinner`, `legalPlays`), utilities (`shuffle`, `sleep`), and grammar helpers (`verbFor`, `subj`, `possessiveOf`). AI context now exposes both `ctx.engine` and `ctx.card`. |
+| **2.17** | Trick-win message ("X wins the trick") is cleared at the start of each new trick / invasion wave instead of lingering until something else overwrites it. |
 | **2.16** | Dealer-draw cards return to a horizontal row, sorted ascending so the leftmost (lowest) is the dealer. Winning cell no longer elevates — sort order is the cue. |
 | **2.15** | Dealer-draw cards stack vertically (column) instead of in a horizontal row. Gap widened to 24px so the 20px winner-elevation doesn't crash into the cell above. |
 | **2.14** | Dealer-draw stage shows a Federation-flavored rulebook excerpt above the cards, framing "lowest deals" as a dystopian status ritual rather than a neutral procedure. |
@@ -47,7 +49,8 @@ rebellion-v3/
 ├── css/app.css             all styles
 ├── README.md               this file
 └── js/
-    ├── engine.js           pure rules (cards, deck, scoring predicates, grammar helpers)
+    ├── card.js             card data model (suits, ranks, names, points, powers, predicates)
+    ├── engine.js           game-flow rules (deal, legal plays, trick winner) + utilities + grammar helpers
     ├── state.js            G (game) and M (mission) state holders
     ├── personas/
     │   ├── registry.js     register / pickLine / pickN

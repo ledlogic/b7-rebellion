@@ -6,12 +6,13 @@
 (function () {
   'use strict';
   const R = (window.Rebellion = window.Rebellion || {});
+  const C = R.card;
   const E = R.engine;
   const S = R.state;
   const UI = R.ui;
 
   async function resolveCardPower(card, winner){
-    const meta = E.cardMeta(card);
+    const meta = C.cardMeta(card);
     if (!meta.power) return;
     switch (meta.power){
       case 'teleport':       await powerTeleport(winner); break;
@@ -38,14 +39,14 @@
       const hc = picks[0], pc = picks[1];
       winner.hand = winner.hand.filter(c => c.id !== hc.id).concat([pc]);
       winner.pile = winner.pile.filter(c => c.id !== pc.id).concat([hc]);
-      UI.logSystem('Teleport Bracelet: ' + E.subj(winner.name, 'swaps') + ' ' + E.cardLabel(hc) + ' (hand) with ' + E.cardLabel(pc) + ' (pile).');
+      UI.logSystem('Teleport Bracelet: ' + E.subj(winner.name, 'swaps') + ' ' + C.cardLabel(hc) + ' (hand) with ' + C.cardLabel(pc) + ' (pile).');
     } else {
-      const worstInPile = winner.pile.slice().sort((a, b) => E.basePoints(a) - E.basePoints(b))[0];
-      const bestInHand  = winner.hand.slice().sort((a, b) => E.basePoints(b) - E.basePoints(a))[0];
-      if (worstInPile && bestInHand && E.basePoints(bestInHand) > E.basePoints(worstInPile)){
+      const worstInPile = winner.pile.slice().sort((a, b) => C.basePoints(a) - C.basePoints(b))[0];
+      const bestInHand  = winner.hand.slice().sort((a, b) => C.basePoints(b) - C.basePoints(a))[0];
+      if (worstInPile && bestInHand && C.basePoints(bestInHand) > C.basePoints(worstInPile)){
         winner.hand = winner.hand.filter(c => c.id !== bestInHand.id).concat([worstInPile]);
         winner.pile = winner.pile.filter(c => c.id !== worstInPile.id).concat([bestInHand]);
-        UI.logSystem('Teleport Bracelet: ' + E.subj(winner.name, 'swaps') + ' ' + E.cardLabel(bestInHand) + ' (hand) with ' + E.cardLabel(worstInPile) + ' (pile).');
+        UI.logSystem('Teleport Bracelet: ' + E.subj(winner.name, 'swaps') + ' ' + C.cardLabel(bestInHand) + ' (hand) with ' + C.cardLabel(worstInPile) + ' (pile).');
         UI.say(winner, 'power');
       }
     }
@@ -61,7 +62,7 @@
         'You captured the Liberator. Destroy the Reserve outright? It will be locked away for the rest of the Mission — no one (including you) can claim it.',
         [{ label:'Destroy the Reserve', value:true }, { label:'Leave it be', value:false }]);
     } else {
-      doDestroy = G.totals[winner.idx] + winner.pile.reduce((s, c) => s + E.basePoints(c), 0) >= 0;
+      doDestroy = G.totals[winner.idx] + winner.pile.reduce((s, c) => s + C.basePoints(c), 0) >= 0;
     }
     if (doDestroy){
       M.reserveDestroyed = true;
@@ -105,12 +106,12 @@
         eligible, { allowSkip:true, skipLabel:'Skip' });
       pick = sel[0];
     } else {
-      pick = eligible.slice().sort((a, b) => E.basePoints(a) - E.basePoints(b))[0];
+      pick = eligible.slice().sort((a, b) => C.basePoints(a) - C.basePoints(b))[0];
     }
     if (pick){
       pick._cancelled = true;
       winner.oracUsed = true;
-      UI.logSystem('Orac: ' + E.subj(winner.name, 'cancels') + ' the value of ' + E.cardLabel(pick) + ' (' + E.cardName(pick) + ') in their pile.');
+      UI.logSystem('Orac: ' + E.subj(winner.name, 'cancels') + ' the value of ' + C.cardLabel(pick) + ' (' + C.cardName(pick) + ') in their pile.');
       if (!winner.isHuman) UI.say(winner, 'power');
     }
     UI.renderAll(); await E.sleep(250);
@@ -131,14 +132,14 @@
       const taken = takeSel[0];
       target.hand = target.hand.filter(c => c.id !== taken.id);
       winner.hand.push(taken);
-      UI.logSystem('Vila: ' + E.subj(winner.name, 'takes') + ' ' + E.cardLabel(taken) + ' from ' + target.name + '.');
+      UI.logSystem('Vila: ' + E.subj(winner.name, 'takes') + ' ' + C.cardLabel(taken) + ' from ' + target.name + '.');
       if (winner.hand.length > 0){
         const giveSel = await UI.askCards('Pick the Lock', 'Now give a card back from your hand.',
           winner.hand, { allowSkip:false, confirmLabel:'Give Card' });
         const given = giveSel[0];
         winner.hand = winner.hand.filter(c => c.id !== given.id);
         target.hand.push(given);
-        UI.logSystem('Vila: ' + E.subj(winner.name, 'gives') + ' ' + E.cardLabel(given) + ' to ' + target.name + ' in exchange.');
+        UI.logSystem('Vila: ' + E.subj(winner.name, 'gives') + ' ' + C.cardLabel(given) + ' to ' + target.name + ' in exchange.');
       }
     } else {
       const def = R.ai.get(winner.aiLevel);
@@ -146,16 +147,16 @@
       target = (def && def.choosePickLockTarget)
         ? def.choosePickLockTarget(winner, others, ctx)
         : others[Math.floor(Math.random() * others.length)];
-      const best = target.hand.slice().sort((a, b) => E.basePoints(b) - E.basePoints(a))[0];
+      const best = target.hand.slice().sort((a, b) => C.basePoints(b) - C.basePoints(a))[0];
       target.hand = target.hand.filter(c => c.id !== best.id);
       winner.hand.push(best);
-      UI.logSystem('Vila: ' + winner.name + ' picks the lock on ' + E.possessiveOf(target.name) + ' hand and takes ' + E.cardLabel(best) + '.');
+      UI.logSystem('Vila: ' + winner.name + ' picks the lock on ' + E.possessiveOf(target.name) + ' hand and takes ' + C.cardLabel(best) + '.');
       UI.say(winner, 'power');
       if (winner.hand.length > 0){
-        const worst = winner.hand.slice().sort((a, b) => E.basePoints(a) - E.basePoints(b))[0];
+        const worst = winner.hand.slice().sort((a, b) => C.basePoints(a) - C.basePoints(b))[0];
         winner.hand = winner.hand.filter(c => c.id !== worst.id);
         target.hand.push(worst);
-        UI.logSystem('Vila: in exchange, ' + E.subj(target.name, 'receives') + ' ' + E.cardLabel(worst) + '.');
+        UI.logSystem('Vila: in exchange, ' + E.subj(target.name, 'receives') + ' ' + C.cardLabel(worst) + '.');
       }
     }
     UI.renderAll(); await E.sleep(300);
@@ -167,7 +168,7 @@
     const taken = M.reserve.splice(0, M.reserve.length);
     winner.pile.push(...taken);
     M.invasionActive = false;
-    UI.logSystem('⚡ TRAVIS: ' + E.subj(winner.name, 'seizes') + ' the entire remaining Reserve (' + taken.length + ' cards): ' + taken.map(E.cardLabel).join(' ') + '.');
+    UI.logSystem('⚡ TRAVIS: ' + E.subj(winner.name, 'seizes') + ' the entire remaining Reserve (' + taken.length + ' cards): ' + taken.map(C.cardLabel).join(' ') + '.');
     if (!winner.isHuman) UI.say(winner, 'reserve');
     else await UI.askInfo('Travis — Reserve Seized', 'You captured Travis. The entire remaining Reserve is seized into your pile.', taken);
     UI.renderAll(); await E.sleep(300);

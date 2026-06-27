@@ -8,7 +8,7 @@
   const R = (window.Rebellion = window.Rebellion || {});
 
   function chooseCard(player, legal, trick, ledSuit, isInvasion, ctx){
-    const { basePoints, isJoker, rankValue } = ctx.engine;
+    const { basePoints, isJoker, rankValue } = ctx.card;
 
     // LEAD — play the smallest-magnitude card we can spare.
     if (trick.length === 0 && !isInvasion){

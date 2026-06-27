@@ -16,7 +16,8 @@
  * ctx (built by buildContext below) gives AIs everything they need without
  * having to import other modules:
  *   { playedCards, knownVoids, numPlayers, players, reserve, invasionActive,
- *     engine: { basePoints, isJoker, rankValue, RANKS, SUITS, cardMeta, ... } }
+ *     engine: { legalPlays, resolveTrickWinner, sleep, subj, verbFor, ... },
+ *     card:   { basePoints, isJoker, rankValue, RANKS, SUITS, cardMeta, ... } }
  */
 (function () {
   'use strict';
@@ -48,7 +49,8 @@
         players: G ? G.players : [],
         reserve: M ? M.reserve : [],
         invasionActive: M ? M.invasionActive : false,
-        engine: R.engine
+        engine: R.engine,
+        card: R.card
       };
     },
 

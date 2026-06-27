@@ -6,6 +6,7 @@
 (function () {
   'use strict';
   const R = (window.Rebellion = window.Rebellion || {});
+  const C = R.card;
   const E = R.engine;
   const S = R.state;
   const UI = R.ui;
@@ -78,10 +79,10 @@
     let attempt = 0, dealerIdx = -1;
     while (dealerIdx === -1 && attempt < 4){
       attempt++;
-      const deck = E.shuffle(E.buildDeck());
+      const deck = E.shuffle(C.buildDeck());
       const draws = players.map((p, i) => ({
         p, card: deck[i],
-        val: E.isJoker(deck[i]) ? 10 : E.basePoints(deck[i])
+        val: C.isJoker(deck[i]) ? 10 : C.basePoints(deck[i])
       }));
       /* Sort ascending so the leftmost card is the lowest (= dealer).
          No elevation on the winning cell — the order itself is the cue. */

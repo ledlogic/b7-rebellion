@@ -10,6 +10,7 @@
 (function () {
   'use strict';
   const R = (window.Rebellion = window.Rebellion || {});
+  const C = R.card;
   const E = R.engine;
   const S = R.state;
 
@@ -18,11 +19,11 @@
     const el = document.createElement('div');
     el.className = 'card suit-' + card.suit + (clickable ? ' clickable' : '') + (tiny ? ' tiny' : '');
     el.dataset.id = card.id;
-    const sym = E.SUIT_SYMBOL[card.suit];
-    el.innerHTML = '<div class="rank-top">' + (E.isJoker(card) ? '★' : card.rank) + (E.isJoker(card) ? '' : sym) + '</div>' +
-                   '<div class="suit-mid">' + (E.isJoker(card) ? '★' : sym) + '</div>' +
-                   '<div class="rank-bot">' + (E.isJoker(card) ? '★' : card.rank) + (E.isJoker(card) ? '' : sym) + '</div>';
-    el.title = E.cardName(card) + ' (' + (E.basePoints(card) >= 0 ? '+' : '') + E.basePoints(card) + ')';
+    const sym = C.SUIT_SYMBOL[card.suit];
+    el.innerHTML = '<div class="rank-top">' + (C.isJoker(card) ? '★' : card.rank) + (C.isJoker(card) ? '' : sym) + '</div>' +
+                   '<div class="suit-mid">' + (C.isJoker(card) ? '★' : sym) + '</div>' +
+                   '<div class="rank-bot">' + (C.isJoker(card) ? '★' : card.rank) + (C.isJoker(card) ? '' : sym) + '</div>';
+    el.title = C.cardName(card) + ' (' + (C.basePoints(card) >= 0 ? '+' : '') + C.basePoints(card) + ')';
     return el;
   }
   function renderCardBackEl(tiny){
@@ -230,7 +231,7 @@
         const wrap = document.createElement('div'); wrap.className = 'modal-card-opt';
         wrap.appendChild(renderCardEl(c, true));
         const lbl = document.createElement('div'); lbl.className = 'lbl';
-        lbl.textContent = E.cardName(c) + ' (' + (E.basePoints(c) >= 0 ? '+' : '') + E.basePoints(c) + ')';
+        lbl.textContent = C.cardName(c) + ' (' + (C.basePoints(c) >= 0 ? '+' : '') + C.basePoints(c) + ')';
         wrap.appendChild(lbl);
         wrap.addEventListener('click', () => {
           if (multi){
@@ -297,7 +298,7 @@
           const wrap = document.createElement('div'); wrap.className = 'modal-card-opt';
           wrap.appendChild(renderCardEl(c, true));
           const lbl = document.createElement('div'); lbl.className = 'lbl';
-          lbl.textContent = E.cardName(c) + ' (' + (E.basePoints(c) >= 0 ? '+' : '') + E.basePoints(c) + ')';
+          lbl.textContent = C.cardName(c) + ' (' + (C.basePoints(c) >= 0 ? '+' : '') + C.basePoints(c) + ')';
           wrap.appendChild(lbl);
           wrap.addEventListener('click', () => {
             [...optsWrap.children].forEach(ch => ch.classList.remove('selected'));
@@ -339,7 +340,7 @@
         cards.forEach(c => {
           const wrap = document.createElement('div'); wrap.className = 'modal-card-opt';
           wrap.appendChild(renderCardEl(c, false));
-          const lbl = document.createElement('div'); lbl.className = 'lbl'; lbl.textContent = E.cardName(c);
+          const lbl = document.createElement('div'); lbl.className = 'lbl'; lbl.textContent = C.cardName(c);
           wrap.appendChild(lbl);
           optsWrap.appendChild(wrap);
         });
@@ -409,7 +410,7 @@
   function cardSort(a, b){
     const order = { H:0, D:1, C:2, S:3, JK:4 };
     if (order[a.suit] !== order[b.suit]) return order[a.suit] - order[b.suit];
-    return E.rankValue(a.rank || '2') - E.rankValue(b.rank || '2');
+    return C.rankValue(a.rank || '2') - C.rankValue(b.rank || '2');
   }
   function renderHumanHand(){
     const G = S.G, M = S.M;
@@ -463,7 +464,7 @@
     }
     document.getElementById('invasion-banner').classList.toggle('hidden', !M.invasionActive);
     document.getElementById('led-suit-tag').textContent = M.ledSuit
-      ? ('Led suit: ' + E.SUIT_SYMBOL[M.ledSuit] + ' ' + E.SUIT_FACTION[M.ledSuit]) : '';
+      ? ('Led suit: ' + C.SUIT_SYMBOL[M.ledSuit] + ' ' + C.SUIT_FACTION[M.ledSuit]) : '';
     const slots = document.getElementById('trick-slots');
     slots.innerHTML = '';
     for (const play of M.currentTrick){
@@ -525,7 +526,7 @@
     const G = S.G;
     const human = G.players[0];
     const sorted = human.pile.slice().sort(cardSort);
-    const livePts = human.pile.reduce((s, c) => s + ((c._cancelled || c._assassinated) ? 0 : E.basePoints(c)), 0);
+    const livePts = human.pile.reduce((s, c) => s + ((c._cancelled || c._assassinated) ? 0 : C.basePoints(c)), 0);
 
     modalBox.innerHTML = '';
     const h = document.createElement('h3'); h.textContent = 'Your Capture Pile'; modalBox.appendChild(h);
@@ -544,8 +545,8 @@
         if (c._cancelled || c._assassinated) cardEl.classList.add('disabled');
         wrap.appendChild(cardEl);
         const lbl = document.createElement('div'); lbl.className = 'lbl';
-        const valTxt = (E.basePoints(c) >= 0 ? '+' : '') + E.basePoints(c);
-        lbl.innerHTML = E.cardName(c) + '<br>' +
+        const valTxt = (C.basePoints(c) >= 0 ? '+' : '') + C.basePoints(c);
+        lbl.innerHTML = C.cardName(c) + '<br>' +
           ((c._cancelled || c._assassinated)
             ? '<span style="text-decoration:line-through;opacity:0.6;">' + valTxt + '</span>'
             : valTxt);

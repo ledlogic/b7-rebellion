@@ -49,7 +49,7 @@
   };
 
   function chooseCard(player, legal, trick, ledSuit, isInvasion, ctx){
-    const { basePoints, isJoker, rankValue, RANKS } = ctx.engine;
+    const { basePoints, isJoker, rankValue, RANKS } = ctx.card;
     const W = WEIGHTS;
 
     /* ---- knowledge state ---- */

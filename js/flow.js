@@ -10,6 +10,7 @@
 (function () {
   'use strict';
   const R = (window.Rebellion = window.Rebellion || {});
+  const C = R.card;
   const E = R.engine;
   const S = R.state;
   const UI = R.ui;
@@ -64,6 +65,7 @@
     M.trickNumber++;
     M.currentTrick = [];
     M.ledSuit = null;
+    UI.setCenterMsg('');   // wipe the previous trick's "X wins the trick" announcement
     UI.renderAll();
     const order = [];
     for (let i = 0; i < G.numPlayers; i++) order.push((M.leadIdx + i) % G.numPlayers);
@@ -85,7 +87,7 @@
       player.hand = player.hand.filter(c => c.id !== card.id);
       const ledSuitBefore = M.ledSuit;
       M.currentTrick.push({ playerIdx:pIdx, who:'PLAYER', card, timestamp: new Date() });
-      if (!M.ledSuit && !E.isJoker(card)) M.ledSuit = card.suit;
+      if (!M.ledSuit && !C.isJoker(card)) M.ledSuit = card.suit;
       S.recordPlay(pIdx, card, ledSuitBefore);
       UI.renderAll();
       await E.sleep(800);   // 1s total inter-move pacing (200 think + 800 = 1000)
@@ -106,7 +108,7 @@
     const winner = G.players[winnerIdx];
     const cards = trick.map(p => p.card);
     UI.setCenterMsgHTML(UI.playerChip(winner) + ' ' + E.verbFor(winner.name, 'wins') + ' the trick.');
-    UI.logSystem(E.subj(winner.name, 'wins') + ' the trick (' + cards.map(E.cardLabel).join(' ') + ').');
+    UI.logSystem(E.subj(winner.name, 'wins') + ' the trick (' + cards.map(C.cardLabel).join(' ') + ').');
 
     /* Lift the winner's seat/area for emphasis while the player reads the
        result. The elevation persists through the awaitContinue pause and
@@ -121,11 +123,11 @@
        what they're about to capture, with cancelled/assassinated cards
        counted as 0). Asterisk if any captured card carries an in-play or
        end-game scoring power. */
-    const pileScore  = winner.pile.reduce((s, c) => s + ((c._cancelled || c._assassinated) ? 0 : E.basePoints(c)), 0);
-    const trickScore = cards.reduce((s, c) => s + E.basePoints(c), 0);
+    const pileScore  = winner.pile.reduce((s, c) => s + ((c._cancelled || c._assassinated) ? 0 : C.basePoints(c)), 0);
+    const trickScore = cards.reduce((s, c) => s + C.basePoints(c), 0);
     const effective  = pileScore + trickScore;
     const hasPower   = cards.some(c => {
-      const meta = E.cardMeta(c);
+      const meta = C.cardMeta(c);
       return !!(meta && (meta.power || meta.scorePower));
     });
 
@@ -140,7 +142,7 @@
     /* Drop the winner back down to their normal row. */
     UI.clearWinnerElevation(elevatedEl);
 
-    const trickPts = cards.reduce((s, c) => s + E.basePoints(c), 0);
+    const trickPts = cards.reduce((s, c) => s + C.basePoints(c), 0);
     if (!winner.isHuman) UI.say(winner, trickPts >= 0 ? 'winGood' : 'winBad');
 
     UI.renderAll();
@@ -154,7 +156,7 @@
 
     /* Full Crew check (global, once per mission) */
     if (!M.fullCrewClaimed && M.reserve.length > 0){
-      if (E.pileHas(winner.pile, 'H', 'A') && winner.pile.some(E.isHeartFace)){
+      if (C.pileHas(winner.pile, 'H', 'A') && winner.pile.some(C.isHeartFace)){
         await resolveFullCrew(winner);
         if (M.missionOver) return;
       }
@@ -200,14 +202,15 @@
     const G = S.G, M = S.M;
     M.trickNumber++;
     M.currentTrick = [];
+    UI.setCenterMsg('');   // wipe any prior "wins" / "repels" announcement
     if (M.reserve.length === 0){ M.invasionActive = false; return; }
     const andCard = M.reserve.shift();
-    M.ledSuit = E.isJoker(andCard) ? null : andCard.suit;
+    M.ledSuit = C.isJoker(andCard) ? null : andCard.suit;
     M.currentTrick.push({ playerIdx:'ANDROMEDAN', who:'ANDROMEDAN', card: andCard, timestamp: new Date() });
     S.recordPlay('ANDROMEDAN', andCard, null);
     UI.renderAll();
-    UI.setCenterMsg('The Andromedan reveals a card: ' + E.cardLabel(andCard));
-    UI.logSystem('Wave ' + M.trickNumber + ': The Andromedans lead with ' + E.cardLabel(andCard) + ' (' + E.cardName(andCard) + ').');
+    UI.setCenterMsg('The Andromedan reveals a card: ' + C.cardLabel(andCard));
+    UI.logSystem('Wave ' + M.trickNumber + ': The Andromedans lead with ' + C.cardLabel(andCard) + ' (' + C.cardName(andCard) + ').');
     await E.sleep(1000);   // 1s before the first responder plays
 
     const order = [];
@@ -229,7 +232,7 @@
       player.hand = player.hand.filter(c => c.id !== card.id);
       const ledSuitBefore = M.ledSuit;
       M.currentTrick.push({ playerIdx:pIdx, who:'PLAYER', card, timestamp: new Date() });
-      if (!M.ledSuit && !E.isJoker(card)) M.ledSuit = card.suit;
+      if (!M.ledSuit && !C.isJoker(card)) M.ledSuit = card.suit;
       S.recordPlay(pIdx, card, ledSuitBefore);
       UI.renderAll();
       await E.sleep(800);
@@ -267,13 +270,13 @@
         revealed, { multi:true, allowSkip:true, skipLabel:'Take Nothing', confirmLabel:'Take Selected' });
       taken = sel;
     } else {
-      taken = revealed.filter(c => E.isJoker(c) || E.basePoints(c) >= 0);
+      taken = revealed.filter(c => C.isJoker(c) || C.basePoints(c) >= 0);
       if (taken.length > 0) UI.say(winner, 'fullCrew');
     }
     winner.pile.push(...taken);
     M.reserve = [];
     M.invasionActive = false;
-    UI.logSystem('Full Crew: ' + E.subj(winner.name, 'takes') + ' ' + (taken.length ? taken.map(E.cardLabel).join(' ') : 'nothing') + '. Remaining Reserve cards are locked away for good.');
+    UI.logSystem('Full Crew: ' + E.subj(winner.name, 'takes') + ' ' + (taken.length ? taken.map(C.cardLabel).join(' ') : 'nothing') + '. Remaining Reserve cards are locked away for good.');
     UI.renderAll(); await E.sleep(300);
   }
 
@@ -287,25 +290,25 @@
     /* Step 1: Gauda Prime — any pile all numbered primes zeros ALL Hearts everywhere */
     let gaudaTriggered = false; const gaudaBy = [];
     for (const p of G.players){
-      if (p.pile.length > 0 && p.pile.every(c => !E.isJoker(c) && E.isNumbered(c) && E.isPrime(c))){
+      if (p.pile.length > 0 && p.pile.every(c => !C.isJoker(c) && C.isNumbered(c) && C.isPrime(c))){
         gaudaTriggered = true; gaudaBy.push(p.name);
       }
     }
     if (gaudaTriggered){
       for (const p of G.players){
-        for (const c of p.pile){ if (E.isHeart(c)) c._cancelled = true; }
+        for (const c of p.pile){ if (C.isHeart(c)) c._cancelled = true; }
       }
       notes.push('Gauda Prime triggered by ' + gaudaBy.join(', ') + ' — ALL Hearts in ALL piles are worth 0.');
     }
 
     /* Step 2: Mutoid — mandatory Heart devour from own pile */
     for (const p of G.players){
-      if (E.pileHas(p.pile, 'S', 'J')){
-        const hearts = p.pile.filter(E.isHeart);
+      if (C.pileHas(p.pile, 'S', 'J')){
+        const hearts = p.pile.filter(C.isHeart);
         if (hearts.length > 0){
-          const target = hearts.find(c => c._cancelled) || hearts.sort((a, b) => E.basePoints(b) - E.basePoints(a))[0];
+          const target = hearts.find(c => c._cancelled) || hearts.sort((a, b) => C.basePoints(b) - C.basePoints(a))[0];
           target._cancelled = true;
-          notes.push('Mutoid in ' + E.possessiveOf(p.name) + ' pile devours ' + E.cardLabel(target) + ' — worth 0.');
+          notes.push('Mutoid in ' + E.possessiveOf(p.name) + ' pile devours ' + C.cardLabel(target) + ' — worth 0.');
         }
       }
     }
@@ -313,15 +316,15 @@
     /* Step 3: IMIPAK — paired with another 10, assassinates any card */
     for (const pIdx of order){
       const p = G.players[pIdx];
-      const hasImipak = E.pileHas(p.pile, 'D', '10');
-      const otherTens = p.pile.filter(c => !E.isJoker(c) && c.rank === '10' && c.suit !== 'D' && !c._assassinated);
+      const hasImipak = C.pileHas(p.pile, 'D', '10');
+      const otherTens = p.pile.filter(c => !C.isJoker(c) && c.rank === '10' && c.suit !== 'D' && !c._assassinated);
       if (hasImipak && otherTens.length > 0){
         const pool = [];
         G.players.forEach(pp => pp.pile.forEach(c => { if (!c._cancelled && !c._assassinated) pool.push({ card:c, owner:pp }); }));
         if (pool.length > 0){
-          const pick = pool.sort((a, b) => E.basePoints(b.card) - E.basePoints(a.card))[0];
+          const pick = pool.sort((a, b) => C.basePoints(b.card) - C.basePoints(a.card))[0];
           pick.card._assassinated = true;
-          notes.push('IMIPAK: ' + E.subj(p.name, 'assassinates') + ' ' + E.cardLabel(pick.card) + ' in ' + E.possessiveOf(pick.owner.name) + ' pile — worth 0.');
+          notes.push('IMIPAK: ' + E.subj(p.name, 'assassinates') + ' ' + C.cardLabel(pick.card) + ' in ' + E.possessiveOf(pick.owner.name) + ' pile — worth 0.');
         }
       }
     }
@@ -330,13 +333,13 @@
     const stepTotals = {};
     for (const p of G.players){
       let sum = 0;
-      for (const c of p.pile){ if (!c._cancelled && !c._assassinated) sum += E.basePoints(c); }
+      for (const c of p.pile){ if (!c._cancelled && !c._assassinated) sum += C.basePoints(c); }
       stepTotals[p.idx] = sum;
     }
 
     /* Step 5: Psycho-Strategist's Gambit — K♣ + A♠ in same pile flips sign */
     for (const p of G.players){
-      if (E.pileHas(p.pile, 'C', 'K') && E.pileHas(p.pile, 'S', 'A')){
+      if (C.pileHas(p.pile, 'C', 'K') && C.pileHas(p.pile, 'S', 'A')){
         stepTotals[p.idx] = -stepTotals[p.idx];
         notes.push("Psycho-Strategist's Gambit: " + E.possessiveOf(p.name) + ' total is reversed to ' + stepTotals[p.idx] + '.');
       }

@@ -5,6 +5,7 @@
 (function () {
   'use strict';
   const R = (window.Rebellion = window.Rebellion || {});
+  const C = R.card;
   const E = R.engine;
 
   const state = {
@@ -59,7 +60,7 @@
     recordPlay(playerIdx, card, ledSuitBefore){
       const M = state.M;
       M.playedCards.push(card);
-      if (ledSuitBefore && playerIdx !== 'ANDROMEDAN' && !E.isJoker(card) && card.suit !== ledSuitBefore){
+      if (ledSuitBefore && playerIdx !== 'ANDROMEDAN' && !C.isJoker(card) && card.suit !== ledSuitBefore){
         if (!M.knownVoids[playerIdx]) M.knownVoids[playerIdx] = new Set();
         M.knownVoids[playerIdx].add(ledSuitBefore);
       }
