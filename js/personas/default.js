@@ -21,7 +21,8 @@
         andromedan:["Nobody briefed me on aliens. I am filing a complaint.","That thing is NOT in my training manual."],
         starOne:["Federation Central, we may have a problem.","I just found Star One. I would like a transfer."],
         missionEnd:["Shift's over. Putting in for reassignment.","Logging off before anything else goes wrong."],
-        idle:["Are we still doing this?","I should be writing a report right now.","Hurry up, my supervisor checks in soon."]
+        idle:["Are we still doing this?","I should be writing a report right now.","Hurry up, my supervisor checks in soon."],
+        humanExposed:["Neutron flare shields read as offline. Filing it.","Tactical readout shows your hand. Forwarded to Central.","Detector grid says: target exposed. Strictly per protocol."]
       }
     },
     { id:'magda', name:'Magda Voss', role:'Freighter Captain', color:'#3fc1b5', tag:'MV',
@@ -36,7 +37,8 @@
         andromedan:["I did NOT sign on for first contact.","Andromedans don't pay in currency I recognize. Bad sign."],
         starOne:["Star One? That's above my pay grade and my insurance.","Time to cut losses and run, people."],
         missionEnd:["Pleasure doing business. Mostly.","Pack it in — I've got another run to make."],
-        idle:["Clock's ticking, the buyer's waiting.","I don't have all cycle, you know."]
+        idle:["Clock's ticking, the buyer's waiting.","I don't have all cycle, you know."],
+        humanExposed:["Force wall's down, friend. That's a smuggler's gift.","I can read your manifest now. Bad cargo, you've got.","Detector shields offline — easiest score I'll have all run."]
       }
     },
     { id:'senn', name:'Auron Senn', role:'Drifter, ex-Auronar', color:'#9b87d9', tag:'AS',
@@ -51,7 +53,8 @@
         andromedan:["I felt them before they arrived. Cold, and very far away.","This presence is not of this galaxy. Be careful."],
         starOne:["A great unmaking, close at hand.","Star One. I wondered when we'd find it."],
         missionEnd:["The pattern closes. Another begins.","Rest now. The next current is already forming."],
-        idle:["Patience. The table speaks when it's ready.","I'm listening to more than the game."]
+        idle:["Patience. The table speaks when it's ready.","I'm listening to more than the game."],
+        humanExposed:["I see your hand as clearly as my own. The current betrays you.","Your patterns lie open to me now. Bear it gracefully.","Your future is in plain sight. I wish it were a kinder one."]
       }
     },
     { id:'tanner', name:'Convict 8-Tanner', role:'Cygnus Alpha Lifer', color:'#d9a441', tag:'CT',
@@ -66,7 +69,8 @@
         andromedan:["Seen guards, seen riots, never seen THAT.","Whatever that is, it didn't do time on Cygnus Alpha."],
         starOne:["Star One. Bigger than any cell block I've seen.","That's the kind of secret that gets people buried."],
         missionEnd:["Back to the grind, I suppose.","Good game. Better than the alternative, anyway."],
-        idle:["Move it along. Yard time's not forever.","I've waited out worse than this."]
+        idle:["Move it along. Yard time's not forever.","I've waited out worse than this."],
+        humanExposed:["Force wall's down. So are you, friend.","Your hand's on display, lifer. Walls have eyes — and so do I.","I can see every card. Hard time just got harder for you."]
       }
     },
     { id:'reeve', name:'Adjutant Reeve', role:'Federation Records Officer', color:'#6b89a8', tag:'AR',
@@ -81,7 +85,8 @@
         andromedan:["There is no form for this. None whatsoever.","I will need an entirely new classification for this event."],
         starOne:["Star One. Above my security clearance, frankly.","This is well beyond standard incident procedure."],
         missionEnd:["Mission concluded. Filing the final report now.","All paperwork will be processed in due course."],
-        idle:["Do continue. The record is still open.","I am, as always, taking notes."]
+        idle:["Do continue. The record is still open.","I am, as always, taking notes."],
+        humanExposed:["Your hand has been logged. Form 9-A, exposed-personnel registry.","Defensive shields offline, per the latest sensor report.","Your cards are now part of the public record. Properly filed."]
       }
     },
     { id:'boz', name:'Boz Calder', role:'Black-Market Trader', color:'#7fae6b', tag:'BC',
@@ -96,7 +101,8 @@
         andromedan:["Friends, I don't have a price for THAT.","Even I won't trade with whatever that is."],
         starOne:["Star One?! Now THAT'S a story worth more than credits.","Careful, friends — some secrets bite back."],
         missionEnd:["Pleasure doing business, as always!","Good round, friends! Same time next mission?"],
-        idle:["Come on, come on, who's buying?","I haven't got all cycle, friends!"]
+        idle:["Come on, come on, who's buying?","I haven't got all cycle, friends!"],
+        humanExposed:["Friends, the merchandise is on display! Don't mind if I look!","Your inventory's wide open, friend. Best prices in the sector!","Detector grid's offline — and so's your secrecy! HA!"]
       }
     }
   ];

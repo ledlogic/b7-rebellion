@@ -11,6 +11,37 @@
   const S = R.state;
   const UI = R.ui;
 
+  /* ---- Blake's 7-style system-name generator ----
+     Per the rulebook's naming conventions: stars are named "Constellation
+     Greek" (Cygnus Alpha) or "Name Major/Prime" (Saurian Major); worlds add
+     a Roman numeral (Centero IV); some are standalone evocative names
+     (Horizon, Destiny). The four patterns below are weighted to match the
+     show's actual frequency. */
+  const NAME_DATA = {
+    constellations:['Cygnus','Lyra','Hydra','Cetus','Orion','Centauri','Draconis',
+      'Auriga','Reticuli','Eridani','Pavonis','Carina','Boötes','Pegasi','Aquilae',
+      'Andromedae','Cassiopeiae','Aquarii','Crateris','Velorum','Sextantis'],
+    greek:['Alpha','Beta','Gamma','Delta','Epsilon','Zeta','Eta','Theta','Iota',
+      'Kappa','Lambda','Sigma','Tau','Phi','Chi','Psi','Omega'],
+    latinNames:['Saurian','Cephlon','Vandor','Helotrix','Bucol','Centero','Aristo',
+      'Albian','Domo','Goth','Lindor','Obsidian','Sarran','Auros','Astra','Sardos',
+      'Kaliope','Solaris','Tharkos','Vendros','Mestor','Tarriel','Korsis','Thallian',
+      'Pellarian','Drakos','Ferzaal','Helex','Phylor','Calion','Vorax','Phovon'],
+    suffixes:['Major','Minor','Prime','Secundus'],
+    roman:['II','III','IV','V','VI','VII','VIII','IX','X','XII'],
+    standalone:['Horizon','Destiny','Sanctuary','Refuge','Outpost','Eclipse',
+      'Aurora','Penumbra','Borealis','Ascendant','Convergence','Halcyon','Ascension',
+      'Vanguard','Threshold']
+  };
+  function pickFrom(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+  function generateSystemName(){
+    const r = Math.random();
+    if (r < 0.40) return pickFrom(NAME_DATA.constellations) + ' ' + pickFrom(NAME_DATA.greek);
+    if (r < 0.70) return pickFrom(NAME_DATA.latinNames)     + ' ' + pickFrom(NAME_DATA.suffixes);
+    if (r < 0.90) return pickFrom(NAME_DATA.latinNames)     + ' ' + pickFrom(NAME_DATA.roman);
+    return pickFrom(NAME_DATA.standalone);
+  }
+
   /* ---- Build player count buttons (3..7) ---- */
   const countRow = document.getElementById('count-row');
   let chosenCount = null;
@@ -67,6 +98,7 @@
       missionLog: [],
       startDealer: 0,
       difficulty: chosenDifficulty,
+      systemName: generateSystemName(),   // Saurian Major, Cygnus Alpha, Centero IV...
       gameStartedAt: null   // stamped on first runMission, drives the GAME header timer
     };
 

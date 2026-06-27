@@ -179,6 +179,20 @@
     UI.logSystem('👁 SERVALAN: ' + E.possessiveOf(winner.name) + ' hand is exposed for the rest of the Mission.');
     if (!winner.isHuman) UI.say(winner, 'power');
     UI.renderAll(); await E.sleep(200);
+
+    /* If the HUMAN's hand was just exposed, give two AI players a chance to
+       taunt with Blake's 7-themed defense-tech commentary — force walls,
+       detector shields, neutron flares, the whole bag. */
+    if (winner.isHuman){
+      const G = S.G;
+      const taunters = G.players.filter(p => !p.isHuman);
+      taunters.sort(() => Math.random() - 0.5);
+      const pickCount = Math.min(2, taunters.length);
+      for (let i = 0; i < pickCount; i++){
+        UI.say(taunters[i], 'humanExposed');
+        await E.sleep(700);
+      }
+    }
   }
 
   R.powers = {

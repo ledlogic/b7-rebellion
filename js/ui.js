@@ -415,6 +415,21 @@
   function renderHumanHand(){
     const G = S.G, M = S.M;
     const human = G.players[0];
+
+    /* Hand-exposed indicator. Servalan's effect (revealHand power) sets
+       human.exposed = true for the rest of the mission. We add a prominent
+       tag in the human-head; renderHumanHand re-runs every renderAll, so
+       the tag stays present until initMissionState wipes the flag. */
+    const headEl = document.querySelector('.human-head');
+    const oldTag = headEl ? headEl.querySelector('.human-exposed-tag') : null;
+    if (oldTag) oldTag.remove();
+    if (human.exposed && headEl){
+      const tag = document.createElement('span');
+      tag.className = 'human-exposed-tag';
+      tag.textContent = '👁 HAND EXPOSED — visible to all opponents';
+      headEl.appendChild(tag);
+    }
+
     const statsEl = document.getElementById('human-stats');
     statsEl.innerHTML = '';
     statsEl.appendChild(document.createTextNode('HAND: ' + human.hand.length + ' · CAPTURED: '));
@@ -568,7 +583,12 @@
     ensureModalRefs();
     const G = S.G;
     modalBox.innerHTML = '';
-    const h = document.createElement('h3'); h.textContent = 'Scoreboard'; modalBox.appendChild(h);
+    const h = document.createElement('h3');
+    h.textContent = 'Current Game' + (G.systemName ? ' — ' + G.systemName : '');
+    modalBox.appendChild(h);
+    const sub = document.createElement('div'); sub.className = 'sub';
+    sub.textContent = 'Running totals after ' + G.missionIndex + ' of ' + G.numPlayers + ' Missions';
+    modalBox.appendChild(sub);
     const table = document.createElement('table'); table.className = 'score-table';
     table.innerHTML = '<tr><th>Player</th><th>Total</th></tr>' +
       G.players.slice().sort((a, b) => G.totals[b.idx] - G.totals[a.idx]).map(p =>
@@ -763,8 +783,11 @@
       hour:'2-digit', minute:'2-digit'
     });
     const durStr = e.durationMs != null ? fmtElapsed(e.durationMs) : '—';
+    /* System name leads the row when present (added in 2.26); falls back to
+       just the date+time for pre-2.26 history entries. */
+    const systemBit = e.systemName ? '<span class="h-system">' + escapeHtml(e.systemName) + '</span> · ' : '';
     head.innerHTML =
-      '<span class="h-when">' + escapeHtml(whenStr) + '</span>' +
+      '<span class="h-when">' + systemBit + escapeHtml(whenStr) + '</span>' +
       '<span class="h-meta">' + e.numPlayers + 'p · ' + escapeHtml(e.difficulty || '?') + ' · ' + durStr + '</span>';
     card.appendChild(head);
 

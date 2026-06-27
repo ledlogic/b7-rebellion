@@ -53,6 +53,7 @@
       durationMs: G.gameStartedAt ? (Date.now() - G.gameStartedAt) : null,
       numPlayers: G.numPlayers,
       difficulty: G.difficulty,
+      systemName: G.systemName || null,
       missions:   G.numPlayers,   // game length = numPlayers missions
       players: G.players.map(p => ({
         idx: p.idx,
@@ -78,6 +79,9 @@
     UI.setCenterMsgHTML('Cards dealt. Reserve of ' + M.reserve.length + ' set aside. ' +
       UI.playerChip(G.players[M.leadIdx]) + ' ' + E.verbFor(G.players[M.leadIdx].name, 'leads') + '.');
     UI.logSystem('— MISSION ' + (G.missionIndex+1) + ' BEGINS — Dealer: ' + G.players[dealerIdx].name + ' · Reserve: ' + M.reserve.length + ' cards —');
+    if (G.missionIndex === 0 && G.systemName){
+      UI.logSystem('▷ Operating zone: ' + G.systemName + '.');
+    }
     for (const p of G.players){ if (!p.isHuman) UI.say(p, 'start'); await E.sleep(120); }
     await E.sleep(700);
     UI.logLayoutMetrics('mission-' + (G.missionIndex+1) + '-start');
