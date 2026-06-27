@@ -1,0 +1,325 @@
+/* Rebellion — flow.js
+ * Mission/trick orchestration. Owns the per-mission loop: alternates between
+ * normal tricks and invasion waves, dispatches AI/human card choices, fires
+ * capture powers, checks the Full Crew opportunity, runs the 5-step scoring,
+ * and resolves the final standings.
+ *
+ * Reads/mutates Rebellion.state.{G,M}. Delegates display to Rebellion.ui and
+ * card-pick decisions to Rebellion.ai.
+ */
+(function () {
+  'use strict';
+  const R = (window.Rebellion = window.Rebellion || {});
+  const E = R.engine;
+  const S = R.state;
+  const UI = R.ui;
+  const POW = R.powers;
+
+  async function runGame(){
+    try {
+      const G = S.G;
+      for (let m = 0; m < G.numPlayers; m++){
+        G.missionIndex = m;
+        const dealerIdx = (G.startDealer + m) % G.numPlayers;
+        await runMission(dealerIdx);
+      }
+      await UI.showFinalResults(runMission);
+    } catch (err){
+      window.__LAST_ERROR = (err && err.stack) ? err.stack : String(err);
+      console.error(err);
+    }
+  }
+
+  async function runMission(dealerIdx){
+    S.initMissionState(dealerIdx);
+    UI.renderAll();
+    const G = S.G, M = S.M;
+    UI.setCenterMsg('Cards dealt. Reserve of ' + M.reserve.length + ' set aside. ' + G.players[M.leadIdx].name + ' leads.');
+    UI.logSystem('— MISSION ' + (G.missionIndex+1) + ' BEGINS — Dealer: ' + G.players[dealerIdx].name + ' · Reserve: ' + M.reserve.length + ' cards —');
+    for (const p of G.players){ if (!p.isHuman) UI.say(p, 'start'); await E.sleep(120); }
+    await E.sleep(700);
+
+    while (!S.M.missionOver){
+      if (S.M.invasionActive) await playInvasionWave();
+      else await playNormalTrick();
+      if (!S.M.missionOver) checkInvasionTrigger();
+    }
+
+    UI.renderAll();
+    await E.sleep(300);
+    if (S.M.missionResult === 'andromedan'){
+      UI.setCenterMsg('The Andromedan tide breaks through. No scoring this Mission.');
+      UI.logSystem('☠ THE ANDROMEDANS BREAK THROUGH — Mission ends. No one scores.');
+      await UI.showInfoBanner('Mission Lost', 'The Andromedan wave could not be repelled. This Mission scores nothing for anyone.');
+    } else {
+      const breakdown = scoreMission();
+      await UI.showScoringModal(breakdown);
+    }
+  }
+
+  /* ----- normal trick ----- */
+  async function playNormalTrick(){
+    const G = S.G, M = S.M;
+    M.trickNumber++;
+    M.currentTrick = [];
+    M.ledSuit = null;
+    UI.renderAll();
+    const order = [];
+    for (let i = 0; i < G.numPlayers; i++) order.push((M.leadIdx + i) % G.numPlayers);
+
+    for (const pIdx of order){
+      M.currentTurn = pIdx;
+      UI.renderAll();
+      const player = G.players[pIdx];
+      const legal = E.legalPlays(player.hand, M.ledSuit);
+      let card;
+      if (player.isHuman){
+        UI.setCenterMsg('Your move — play a legal card.');
+        card = await UI.getHumanCard(legal);
+      } else {
+        await E.sleep(420 + Math.random()*380);
+        card = R.ai.chooseCard(player, legal, M.currentTrick, M.ledSuit, false);
+        if (M.currentTrick.length === 0) UI.say(player, 'lead');
+      }
+      player.hand = player.hand.filter(c => c.id !== card.id);
+      const ledSuitBefore = M.ledSuit;
+      M.currentTrick.push({ playerIdx:pIdx, who:'PLAYER', card });
+      if (!M.ledSuit && !E.isJoker(card)) M.ledSuit = card.suit;
+      S.recordPlay(pIdx, card, ledSuitBefore);
+      UI.renderAll();
+      await E.sleep(380);
+    }
+
+    const winnerIdx = E.resolveTrickWinner(M.currentTrick, M.ledSuit);
+    await resolveTrickEnd(M.currentTrick, winnerIdx, false);
+  }
+
+  async function resolveTrickEnd(trick, winnerIdx, isInvasionWave){
+    const G = S.G, M = S.M;
+    if (winnerIdx === 'ANDROMEDAN'){
+      M.missionOver = true; M.missionResult = 'andromedan';
+      UI.setCenterMsg('The Andromedan card takes the trick!');
+      UI.logSystem('The Andromedan wave wins the trick — incursion successful.');
+      return;
+    }
+    const winner = G.players[winnerIdx];
+    const cards = trick.map(p => p.card);
+    UI.setCenterMsg(E.subj(winner.name, 'wins') + ' the trick.');
+    UI.logSystem(E.subj(winner.name, 'wins') + ' the trick (' + cards.map(E.cardLabel).join(' ') + ').');
+    winner.pile.push(...cards);
+
+    const trickPts = cards.reduce((s, c) => s + E.basePoints(c), 0);
+    if (!winner.isHuman) UI.say(winner, trickPts >= 0 ? 'winGood' : 'winBad');
+
+    UI.renderAll();
+    await E.sleep(400);
+
+    /* capture-triggered powers, in trick play order */
+    for (const play of trick){
+      await POW.resolveCardPower(play.card, winner);
+      if (M.missionOver) return;
+    }
+
+    /* Full Crew check (global, once per mission) */
+    if (!M.fullCrewClaimed && M.reserve.length > 0){
+      if (E.pileHas(winner.pile, 'H', 'A') && winner.pile.some(E.isHeartFace)){
+        await resolveFullCrew(winner);
+        if (M.missionOver) return;
+      }
+    }
+
+    /* Star One ends the mission */
+    if (cards.some(c => c.suit === 'C' && c.rank === 'A')){
+      M.missionOver = true; M.missionResult = 'starOne';
+      UI.setCenterMsg('STAR ONE has been captured. Mission ends immediately.');
+      UI.logSystem('☢ STAR ONE CAPTURED by ' + winner.name + ' — Mission ends immediately. Cards still in hand score nothing.');
+      if (!winner.isHuman) UI.say(winner, 'starOne');
+      UI.renderAll();
+      await E.sleep(900);
+      return;
+    }
+
+    M.leadIdx = winnerIdx;
+
+    if (G.players.every(p => p.hand.length === 0)){
+      M.missionOver = true; M.missionResult = 'normal';
+      UI.renderAll();
+      await E.sleep(300);
+      return;
+    }
+    UI.renderAll();
+    await E.sleep(250);
+  }
+
+  function checkInvasionTrigger(){
+    const G = S.G, M = S.M;
+    if (M.invasionActive || M.missionOver) return;
+    if (M.reserve.length <= 0) return;
+    const handLen = G.players[0].hand.length;
+    if (handLen === M.reserve.length){
+      M.invasionActive = true;
+      UI.logSystem('⚠ ANDROMEDAN INCURSION BEGINS — hand size matches Reserve. The Andromedans now lead each trick.');
+      G.players.forEach(p => { if (!p.isHuman) UI.say(p, 'andromedan'); });
+    }
+  }
+
+  /* ----- invasion wave ----- */
+  async function playInvasionWave(){
+    const G = S.G, M = S.M;
+    M.trickNumber++;
+    M.currentTrick = [];
+    if (M.reserve.length === 0){ M.invasionActive = false; return; }
+    const andCard = M.reserve.shift();
+    M.ledSuit = E.isJoker(andCard) ? null : andCard.suit;
+    M.currentTrick.push({ playerIdx:'ANDROMEDAN', who:'ANDROMEDAN', card: andCard });
+    S.recordPlay('ANDROMEDAN', andCard, null);
+    UI.renderAll();
+    UI.setCenterMsg('The Andromedan reveals a card: ' + E.cardLabel(andCard));
+    UI.logSystem('Wave ' + M.trickNumber + ': The Andromedans lead with ' + E.cardLabel(andCard) + ' (' + E.cardName(andCard) + ').');
+    await E.sleep(700);
+
+    const order = [];
+    for (let i = 0; i < G.numPlayers; i++) order.push((M.leadIdx + i) % G.numPlayers);
+
+    for (const pIdx of order){
+      M.currentTurn = pIdx;
+      UI.renderAll();
+      const player = G.players[pIdx];
+      const legal = E.legalPlays(player.hand, M.ledSuit);
+      let card;
+      if (player.isHuman){
+        UI.setCenterMsg('Andromedan wave — respond with a legal card.');
+        card = await UI.getHumanCard(legal);
+      } else {
+        await E.sleep(420 + Math.random()*380);
+        card = R.ai.chooseCard(player, legal, M.currentTrick, M.ledSuit, true);
+      }
+      player.hand = player.hand.filter(c => c.id !== card.id);
+      const ledSuitBefore = M.ledSuit;
+      M.currentTrick.push({ playerIdx:pIdx, who:'PLAYER', card });
+      if (!M.ledSuit && !E.isJoker(card)) M.ledSuit = card.suit;
+      S.recordPlay(pIdx, card, ledSuitBefore);
+      UI.renderAll();
+      await E.sleep(380);
+    }
+
+    const winnerIdx = E.resolveTrickWinner(M.currentTrick, M.ledSuit);
+    if (winnerIdx === 'ANDROMEDAN'){
+      await resolveTrickEnd(M.currentTrick, 'ANDROMEDAN', true);
+      return;
+    }
+    UI.setCenterMsg(E.subj(G.players[winnerIdx].name, 'repels') + ' the wave!');
+    UI.logSystem(E.subj(G.players[winnerIdx].name, 'repels') + ' the Andromedan wave and claims the trick.');
+    const winner = G.players[winnerIdx];
+    if (!winner.isHuman) UI.say(winner, 'andromedan');
+
+    await resolveTrickEnd(M.currentTrick, winnerIdx, true);
+    if (M.missionOver) return;
+
+    if (M.reserve.length === 0){
+      M.invasionActive = false;
+      UI.logSystem('Reserve exhausted — the incursion ends.');
+    }
+  }
+
+  async function resolveFullCrew(winner){
+    const M = S.M;
+    if (M.reserve.length === 0){ M.fullCrewClaimed = true; return; }
+    UI.logSystem('★ FULL CREW: ' + E.subj(winner.name, 'has') + ' Avon and a Liberator officer together. The Reserve is revealed!');
+    M.fullCrewClaimed = true;
+    const revealed = M.reserve.slice();
+    let taken = [];
+    if (winner.isHuman){
+      const sel = await UI.askCards('Full Crew — Reserve Revealed',
+        'Take any, all, or none of the revealed Reserve cards into your pile. Whatever you leave behind is locked away for good.',
+        revealed, { multi:true, allowSkip:true, skipLabel:'Take Nothing', confirmLabel:'Take Selected' });
+      taken = sel;
+    } else {
+      taken = revealed.filter(c => E.isJoker(c) || E.basePoints(c) >= 0);
+      if (taken.length > 0) UI.say(winner, 'fullCrew');
+    }
+    winner.pile.push(...taken);
+    M.reserve = [];
+    M.invasionActive = false;
+    UI.logSystem('Full Crew: ' + E.subj(winner.name, 'takes') + ' ' + (taken.length ? taken.map(E.cardLabel).join(' ') : 'nothing') + '. Remaining Reserve cards are locked away for good.');
+    UI.renderAll(); await E.sleep(300);
+  }
+
+  /* ============================================================ Scoring ============================================================ */
+  function scoreMission(){
+    const G = S.G, M = S.M;
+    const notes = [];
+    const order = [];
+    for (let i = 0; i < G.numPlayers; i++) order.push((M.dealerIdx + 1 + i) % G.numPlayers);
+
+    /* Step 1: Gauda Prime — any pile all numbered primes zeros ALL Hearts everywhere */
+    let gaudaTriggered = false; const gaudaBy = [];
+    for (const p of G.players){
+      if (p.pile.length > 0 && p.pile.every(c => !E.isJoker(c) && E.isNumbered(c) && E.isPrime(c))){
+        gaudaTriggered = true; gaudaBy.push(p.name);
+      }
+    }
+    if (gaudaTriggered){
+      for (const p of G.players){
+        for (const c of p.pile){ if (E.isHeart(c)) c._cancelled = true; }
+      }
+      notes.push('Gauda Prime triggered by ' + gaudaBy.join(', ') + ' — ALL Hearts in ALL piles are worth 0.');
+    }
+
+    /* Step 2: Mutoid — mandatory Heart devour from own pile */
+    for (const p of G.players){
+      if (E.pileHas(p.pile, 'S', 'J')){
+        const hearts = p.pile.filter(E.isHeart);
+        if (hearts.length > 0){
+          const target = hearts.find(c => c._cancelled) || hearts.sort((a, b) => E.basePoints(b) - E.basePoints(a))[0];
+          target._cancelled = true;
+          notes.push('Mutoid in ' + E.possessiveOf(p.name) + ' pile devours ' + E.cardLabel(target) + ' — worth 0.');
+        }
+      }
+    }
+
+    /* Step 3: IMIPAK — paired with another 10, assassinates any card */
+    for (const pIdx of order){
+      const p = G.players[pIdx];
+      const hasImipak = E.pileHas(p.pile, 'D', '10');
+      const otherTens = p.pile.filter(c => !E.isJoker(c) && c.rank === '10' && c.suit !== 'D' && !c._assassinated);
+      if (hasImipak && otherTens.length > 0){
+        const pool = [];
+        G.players.forEach(pp => pp.pile.forEach(c => { if (!c._cancelled && !c._assassinated) pool.push({ card:c, owner:pp }); }));
+        if (pool.length > 0){
+          const pick = pool.sort((a, b) => E.basePoints(b.card) - E.basePoints(a.card))[0];
+          pick.card._assassinated = true;
+          notes.push('IMIPAK: ' + E.subj(p.name, 'assassinates') + ' ' + E.cardLabel(pick.card) + ' in ' + E.possessiveOf(pick.owner.name) + ' pile — worth 0.');
+        }
+      }
+    }
+
+    /* Step 4: totals */
+    const stepTotals = {};
+    for (const p of G.players){
+      let sum = 0;
+      for (const c of p.pile){ if (!c._cancelled && !c._assassinated) sum += E.basePoints(c); }
+      stepTotals[p.idx] = sum;
+    }
+
+    /* Step 5: Psycho-Strategist's Gambit — K♣ + A♠ in same pile flips sign */
+    for (const p of G.players){
+      if (E.pileHas(p.pile, 'C', 'K') && E.pileHas(p.pile, 'S', 'A')){
+        stepTotals[p.idx] = -stepTotals[p.idx];
+        notes.push("Psycho-Strategist's Gambit: " + E.possessiveOf(p.name) + ' total is reversed to ' + stepTotals[p.idx] + '.');
+      }
+    }
+
+    for (const p of G.players){
+      G.totals[p.idx] += stepTotals[p.idx];
+      if (!p.isHuman) UI.say(p, stepTotals[p.idx] >= 0 ? 'winGood' : 'winBad');
+    }
+
+    return { notes, missionTotals: stepTotals };
+  }
+
+  R.flow = {
+    runGame, runMission, playNormalTrick, playInvasionWave,
+    resolveTrickEnd, checkInvasionTrigger, resolveFullCrew, scoreMission
+  };
+})();

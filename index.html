@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REBELLION — A Blake's 7 Trick-Taking Game</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- ===================== SETUP SCREEN ===================== -->
+<div id="setup-screen">
+  <div class="setup-card">
+    <div class="brand">
+      <div class="glyph">FEDERATION ENCRYPTED CHANNEL // PRIVATE GAME</div>
+      <h1>REBELLION</h1>
+      <p>A Trick-Taking Game of Crew, Tech, Hazards &amp; the Federation</p>
+      <div class="version">VERSION 2.01 // MODULAR BUILD</div>
+    </div>
+
+    <div class="setup-section">
+      <label class="title">How many players at the table? (3–7)</label>
+      <div class="count-row" id="count-row"></div>
+    </div>
+
+    <div class="setup-section">
+      <label class="title">Federation Skill Grade (AI Difficulty)</label>
+      <div class="count-row" id="difficulty-row"></div>
+      <div style="font-size:11px;color:var(--dim);margin-top:8px;font-style:italic;line-height:1.5;">
+        Each AI is its own plug-in module. Drop a new <span class="mono">ai/&lt;name&gt;.js</span> file and it appears here automatically.
+      </div>
+    </div>
+
+    <div class="setup-section" id="dealer-draw-section" style="display:none;">
+      <label class="title">Drawing for first deal...</label>
+      <div id="dealer-draw-row" class="modal-options"></div>
+      <div class="center-msg" id="dealer-draw-msg"></div>
+    </div>
+
+    <div class="setup-blurb">
+      You'll play <b id="blurb-missions">one Mission</b> per player, dealer rotating each time. Total scores
+      across all Missions decide who becomes Commander of the Liberator. Your table will be filled out with
+      background crew &amp; opportunists pulled from the wider Rebellion — they'll talk. A lot.
+    </div>
+
+    <div class="setup-foot">
+      <button class="primary" id="btn-start" disabled>Deal the Cards</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== GAME SCREEN ===================== -->
+<div id="game-screen">
+  <header class="topbar">
+    <div class="title">
+      <span class="glyph">REBELLION</span>
+      <h2 id="hdr-title">Mission 1 of 4</h2>
+    </div>
+    <div class="meta">
+      <span>DEALER: <b id="hdr-dealer">—</b></span>
+      <span>TRICK: <b id="hdr-trick">0</b></span>
+      <span>RESERVE: <b id="hdr-reserve">0</b></span>
+      <span>AI: <b id="hdr-ai">—</b></span>
+    </div>
+    <div class="actions">
+      <button id="btn-scores">Scoreboard</button>
+      <button class="comms-toggle" id="btn-comms-toggle">Comms ▤</button>
+    </div>
+  </header>
+
+  <div class="table-wrap">
+    <div class="table-main">
+      <div class="opponents-row" id="opponents-row"></div>
+
+      <div class="center-area" id="center-area">
+        <div class="reserve-indicator" id="reserve-indicator"><span class="dot"></span><span id="reserve-text">RESERVE: 0</span></div>
+        <div class="invasion-banner hidden" id="invasion-banner">⚠ ANDROMEDAN INCURSION ACTIVE</div>
+        <div class="led-suit-tag" id="led-suit-tag"></div>
+        <div class="trick-slots" id="trick-slots"></div>
+        <div class="center-msg" id="center-msg">Dealing the table...</div>
+      </div>
+
+      <div class="human-area">
+        <div class="human-head">
+          <span class="name" id="human-name">YOU — Avon's Crew</span>
+          <span class="stats" id="human-stats">HAND: 0 · PILE: 0 · TOTAL: 0</span>
+        </div>
+        <div class="hand-row" id="human-hand"></div>
+      </div>
+    </div>
+
+    <div class="comms-panel" id="comms-panel">
+      <div class="comms-head"><span><span class="live-dot"></span>INTERCEPTED COMMS</span><span id="comms-mission-tag" class="mono"></span></div>
+      <div class="comms-feed" id="comms-feed"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL ===================== -->
+<div id="modal-root">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box" id="modal-box"></div>
+</div>
+
+<!--
+  SCRIPT LOAD ORDER MATTERS — plain script tags (not modules) so the file
+  opens directly from disk. Each script attaches to window.Rebellion.*
+-->
+<!-- core -->
+<script src="js/engine.js"></script>
+<script src="js/state.js"></script>
+
+<!-- persona system: registry FIRST, then default personas register themselves -->
+<script src="js/personas/registry.js"></script>
+<script src="js/personas/default.js"></script>
+
+<!-- AI system: registry FIRST, then each AI self-registers.
+     Adding a new tier (e.g. beta.js) = drop a new <script> tag here. -->
+<script src="js/ai/registry.js"></script>
+<script src="js/ai/delta.js"></script>
+<script src="js/ai/gamma.js"></script>
+
+<!-- UI (needs engine + state), powers (needs UI + AI), flow (needs everything) -->
+<script src="js/ui.js"></script>
+<script src="js/powers.js"></script>
+<script src="js/flow.js"></script>
+
+<!-- entry point -->
+<script src="js/app.js"></script>
+
+</body>
+</html>
