@@ -28,16 +28,14 @@
   async function powerTeleport(winner){
     if (winner.hand.length === 0 || winner.pile.length === 0) return;
     if (winner.isHuman){
-      UI.setCenterMsg('Teleport Bracelet: choose a card from your hand and one from your pile to swap.');
-      const handPick = await UI.askCards('Teleport Bracelet',
-        'Choose ONE card from your HAND to send to your capture pile (or skip).',
-        winner.hand, { allowSkip:true, skipLabel:'Skip Swap' });
-      if (handPick.length === 0) return;
-      const pilePick = await UI.askCards('Teleport Bracelet',
-        'Now choose ONE card from your CAPTURE PILE to take into your hand instead.',
-        winner.pile, { allowSkip:false, confirmLabel:'Swap' });
-      if (pilePick.length === 0) return;
-      const hc = handPick[0], pc = pilePick[0];
+      UI.setCenterMsg('Teleport Bracelet: choose a card to send from your hand, and one from your pile to take back.');
+      const picks = await UI.askPairOfCards('Teleport Bracelet',
+        'Pick one card from your HAND to send into your capture pile, and one from your CAPTURE PILE to take back into your hand. Both choices are made in this dialog.',
+        { label: 'From your HAND → pile', cards: winner.hand },
+        { label: 'From your PILE → hand', cards: winner.pile },
+        { allowSkip: true, skipLabel: 'Skip Swap', confirmLabel: 'Swap' });
+      if (picks.length === 0) return;
+      const hc = picks[0], pc = picks[1];
       winner.hand = winner.hand.filter(c => c.id !== hc.id).concat([pc]);
       winner.pile = winner.pile.filter(c => c.id !== pc.id).concat([hc]);
       UI.logSystem('Teleport Bracelet: ' + E.subj(winner.name, 'swaps') + ' ' + E.cardLabel(hc) + ' (hand) with ' + E.cardLabel(pc) + ' (pile).');
@@ -91,7 +89,7 @@
       target = (def && def.chooseZenTarget)
         ? def.chooseZenTarget(winner, others, ctx)
         : others[Math.floor(Math.random() * others.length)];
-      UI.logSystem('Zen: ' + winner.name + ' quietly studies ' + target.name + "'s hand.");
+      UI.logSystem('Zen: ' + winner.name + ' quietly studies ' + E.possessiveOf(target.name) + ' hand.');
       UI.say(winner, 'power');
     }
   }

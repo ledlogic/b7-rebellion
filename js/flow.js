@@ -34,7 +34,7 @@
     S.initMissionState(dealerIdx);
     UI.renderAll();
     const G = S.G, M = S.M;
-    UI.setCenterMsg('Cards dealt. Reserve of ' + M.reserve.length + ' set aside. ' + G.players[M.leadIdx].name + ' leads.');
+    UI.setCenterMsg('Cards dealt. Reserve of ' + M.reserve.length + ' set aside. ' + E.subj(G.players[M.leadIdx].name, 'leads') + '.');
     UI.logSystem('— MISSION ' + (G.missionIndex+1) + ' BEGINS — Dealer: ' + G.players[dealerIdx].name + ' · Reserve: ' + M.reserve.length + ' cards —');
     for (const p of G.players){ if (!p.isHuman) UI.say(p, 'start'); await E.sleep(120); }
     await E.sleep(700);
@@ -77,17 +77,17 @@
         UI.setCenterMsg('Your move — play a legal card.');
         card = await UI.getHumanCard(legal);
       } else {
-        await E.sleep(420 + Math.random()*380);
+        await E.sleep(200);  // brief deliberation beat
         card = R.ai.chooseCard(player, legal, M.currentTrick, M.ledSuit, false);
         if (M.currentTrick.length === 0) UI.say(player, 'lead');
       }
       player.hand = player.hand.filter(c => c.id !== card.id);
       const ledSuitBefore = M.ledSuit;
-      M.currentTrick.push({ playerIdx:pIdx, who:'PLAYER', card });
+      M.currentTrick.push({ playerIdx:pIdx, who:'PLAYER', card, timestamp: new Date() });
       if (!M.ledSuit && !E.isJoker(card)) M.ledSuit = card.suit;
       S.recordPlay(pIdx, card, ledSuitBefore);
       UI.renderAll();
-      await E.sleep(380);
+      await E.sleep(800);   // 1s total inter-move pacing (200 think + 800 = 1000)
     }
 
     const winnerIdx = E.resolveTrickWinner(M.currentTrick, M.ledSuit);
@@ -106,6 +106,13 @@
     const cards = trick.map(p => p.card);
     UI.setCenterMsg(E.subj(winner.name, 'wins') + ' the trick.');
     UI.logSystem(E.subj(winner.name, 'wins') + ' the trick (' + cards.map(E.cardLabel).join(' ') + ').');
+
+    /* Pause for the player to read who won. Cards stay on the table until
+       they click Continue, then fly to the winner's name. */
+    await UI.awaitContinue('Continue');
+    await UI.animateTrickCapture(winnerIdx);
+    M.currentTrick = [];
+
     winner.pile.push(...cards);
 
     const trickPts = cards.reduce((s, c) => s + E.basePoints(c), 0);
@@ -171,12 +178,12 @@
     if (M.reserve.length === 0){ M.invasionActive = false; return; }
     const andCard = M.reserve.shift();
     M.ledSuit = E.isJoker(andCard) ? null : andCard.suit;
-    M.currentTrick.push({ playerIdx:'ANDROMEDAN', who:'ANDROMEDAN', card: andCard });
+    M.currentTrick.push({ playerIdx:'ANDROMEDAN', who:'ANDROMEDAN', card: andCard, timestamp: new Date() });
     S.recordPlay('ANDROMEDAN', andCard, null);
     UI.renderAll();
     UI.setCenterMsg('The Andromedan reveals a card: ' + E.cardLabel(andCard));
     UI.logSystem('Wave ' + M.trickNumber + ': The Andromedans lead with ' + E.cardLabel(andCard) + ' (' + E.cardName(andCard) + ').');
-    await E.sleep(700);
+    await E.sleep(1000);   // 1s before the first responder plays
 
     const order = [];
     for (let i = 0; i < G.numPlayers; i++) order.push((M.leadIdx + i) % G.numPlayers);
@@ -191,16 +198,16 @@
         UI.setCenterMsg('Andromedan wave — respond with a legal card.');
         card = await UI.getHumanCard(legal);
       } else {
-        await E.sleep(420 + Math.random()*380);
+        await E.sleep(200);
         card = R.ai.chooseCard(player, legal, M.currentTrick, M.ledSuit, true);
       }
       player.hand = player.hand.filter(c => c.id !== card.id);
       const ledSuitBefore = M.ledSuit;
-      M.currentTrick.push({ playerIdx:pIdx, who:'PLAYER', card });
+      M.currentTrick.push({ playerIdx:pIdx, who:'PLAYER', card, timestamp: new Date() });
       if (!M.ledSuit && !E.isJoker(card)) M.ledSuit = card.suit;
       S.recordPlay(pIdx, card, ledSuitBefore);
       UI.renderAll();
-      await E.sleep(380);
+      await E.sleep(800);
     }
 
     const winnerIdx = E.resolveTrickWinner(M.currentTrick, M.ledSuit);

@@ -47,12 +47,89 @@
     const div = document.createElement('div');
     div.className = 'log-line';
     const c = player.color;
-    div.innerHTML = '<span class="tag" style="background:' + c + '22;color:' + c + ';border:1px solid ' + c + '55;">' +
-                    (player.isHuman ? 'YOU' : player.persona.tag) + '</span>' + escapeHtml(text);
+    const tagText = player.isHuman ? 'YOU' : player.persona.tag;
+    const tooltip = player.isHuman ? 'You' : (player.persona.name + ' — ' + player.persona.role);
+    div.innerHTML = '<span class="tag" title="' + escapeAttr(tooltip) + '" style="background:' + c + '22;color:' + c + ';border:1px solid ' + c + '55;cursor:help;">' +
+                    tagText + '</span>' + escapeHtml(text);
     feed.appendChild(div);
     feed.scrollTop = feed.scrollHeight;
   }
   function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function escapeAttr(s){ return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+  /* Pause flow until the user clicks a Continue button. The button is
+     absolutely-positioned at the bottom of the center area so it doesn't
+     push the trick cards around — they stay where they are, fully visible,
+     until the user advances. */
+  function awaitContinue(label){
+    label = label || 'Continue';
+    return new Promise(resolve => {
+      const centerArea = document.getElementById('center-area');
+      if (!centerArea){ resolve(); return; }
+      const existing = centerArea.querySelector('.continue-prompt');
+      if (existing) existing.remove();
+      const wrap = document.createElement('div'); wrap.className = 'continue-prompt';
+      const btn = document.createElement('button'); btn.className = 'primary';
+      btn.textContent = label;
+      wrap.appendChild(btn);
+      centerArea.appendChild(wrap);
+      btn.addEventListener('click', () => { wrap.remove(); resolve(); }, { once:true });
+    });
+  }
+
+  function formatTime(d){
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return hh + ':' + mm + ':' + ss;
+  }
+
+  /* Animate played cards flying up to the winner's name. Cards translate
+     toward the destination, shrink, and fade. Sibling labels (who, timestamp)
+     fade in place so the slot is visually emptied by the end. After the
+     animation completes, the caller is expected to clear M.currentTrick so
+     the next render doesn't restore the cards we just animated away. */
+  async function animateTrickCapture(winnerIdx){
+    if (winnerIdx === 'ANDROMEDAN') return;
+    const trickSlots = document.getElementById('trick-slots');
+    if (!trickSlots) return;
+
+    let targetEl;
+    if (winnerIdx === 0){
+      targetEl = document.querySelector('#human-name');
+    } else {
+      const seat = document.querySelector('.seat[data-idx="' + winnerIdx + '"]');
+      targetEl = seat && seat.querySelector('.name');
+    }
+    if (!targetEl) return;
+
+    const targetRect = targetEl.getBoundingClientRect();
+    // jsdom returns zero rects (no layout). Skip animation in that case.
+    if (targetRect.width === 0 && targetRect.height === 0) return;
+    const targetCx = targetRect.left + targetRect.width/2;
+    const targetCy = targetRect.top + targetRect.height/2;
+
+    const slots = [...trickSlots.querySelectorAll('.trick-slot')];
+    for (const slot of slots){
+      const cardEl = slot.querySelector('.card');
+      if (cardEl){
+        const r = cardEl.getBoundingClientRect();
+        const dx = targetCx - (r.left + r.width/2);
+        const dy = targetCy - (r.top + r.height/2);
+        cardEl.style.transition = 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.6s ease-in';
+        cardEl.style.transform  = 'translate(' + dx + 'px, ' + dy + 'px) scale(0.18)';
+        cardEl.style.opacity    = '0';
+      }
+      const fadeEls = [slot.querySelector('.who'), slot.querySelector('.play-timestamp')];
+      for (const el of fadeEls){
+        if (el){
+          el.style.transition = 'opacity 0.4s ease-out';
+          el.style.opacity = '0';
+        }
+      }
+    }
+    await E.sleep(620);
+  }
 
   function say(player, category){
     if (player.isHuman) return;
@@ -155,6 +232,70 @@
     });
   }
 
+  /* Two-list card picker. Shows two card sections with their own labels in
+     one modal — used by Teleport Bracelet to merge what was a sequential
+     hand-then-pile choice into a single dialog. Resolves with
+     [leftPick, rightPick] when both selected and confirmed, or [] on skip. */
+  function askPairOfCards(title, sub, leftSection, rightSection, opts){
+    ensureModalRefs();
+    opts = opts || {};
+    const allowSkip = opts.allowSkip !== false;
+    const skipLabel = opts.skipLabel || 'Skip';
+    const confirmLabel = opts.confirmLabel || 'Confirm';
+    return new Promise(resolve => {
+      modalBox.innerHTML = '';
+      const h = document.createElement('h3'); h.textContent = title; modalBox.appendChild(h);
+      if (sub){ const p = document.createElement('div'); p.className = 'sub'; p.textContent = sub; modalBox.appendChild(p); }
+      let leftPick = null, rightPick = null;
+      let confirmBtn;
+      function refreshConfirm(){ if (confirmBtn) confirmBtn.disabled = !(leftPick && rightPick); }
+      function buildSection(section, setPick){
+        const sectionWrap = document.createElement('div');
+        sectionWrap.style.marginBottom = '14px';
+        const label = document.createElement('div');
+        label.style.fontSize = '11px';
+        label.style.textTransform = 'uppercase';
+        label.style.letterSpacing = '0.12em';
+        label.style.color = 'var(--muted)';
+        label.style.marginBottom = '8px';
+        label.textContent = section.label;
+        sectionWrap.appendChild(label);
+        const optsWrap = document.createElement('div'); optsWrap.className = 'modal-options';
+        section.cards.forEach(c => {
+          const wrap = document.createElement('div'); wrap.className = 'modal-card-opt';
+          wrap.appendChild(renderCardEl(c, true));
+          const lbl = document.createElement('div'); lbl.className = 'lbl';
+          lbl.textContent = E.cardName(c) + ' (' + (E.basePoints(c) >= 0 ? '+' : '') + E.basePoints(c) + ')';
+          wrap.appendChild(lbl);
+          wrap.addEventListener('click', () => {
+            [...optsWrap.children].forEach(ch => ch.classList.remove('selected'));
+            wrap.classList.add('selected');
+            setPick(c);
+            refreshConfirm();
+          });
+          optsWrap.appendChild(wrap);
+        });
+        sectionWrap.appendChild(optsWrap);
+        modalBox.appendChild(sectionWrap);
+      }
+      buildSection(leftSection,  c => { leftPick  = c; });
+      buildSection(rightSection, c => { rightPick = c; });
+      const foot = document.createElement('div'); foot.className = 'modal-foot';
+      if (allowSkip){
+        const skipBtn = document.createElement('button'); skipBtn.textContent = skipLabel;
+        skipBtn.addEventListener('click', () => { closeModal(); resolve([]); });
+        foot.appendChild(skipBtn);
+      }
+      confirmBtn = document.createElement('button'); confirmBtn.className = 'primary';
+      confirmBtn.textContent = confirmLabel;
+      confirmBtn.disabled = true;
+      confirmBtn.addEventListener('click', () => { closeModal(); resolve([leftPick, rightPick]); });
+      foot.appendChild(confirmBtn);
+      modalBox.appendChild(foot);
+      modalRoot.classList.add('open');
+    });
+  }
+
   function askInfo(title, sub, cards){
     ensureModalRefs();
     return new Promise(resolve => {
@@ -241,7 +382,20 @@
   function renderHumanHand(){
     const G = S.G, M = S.M;
     const human = G.players[0];
-    document.getElementById('human-stats').textContent = 'HAND: ' + human.hand.length + ' · PILE: ' + human.pile.length + ' · TOTAL: ' + G.totals[0];
+    const statsEl = document.getElementById('human-stats');
+    statsEl.innerHTML = '';
+    statsEl.appendChild(document.createTextNode('HAND: ' + human.hand.length + ' · PILE: '));
+    if (human.pile.length > 0){
+      const link = document.createElement('span');
+      link.className = 'pile-link';
+      link.textContent = human.pile.length;
+      link.title = 'Click to review your capture pile';
+      link.addEventListener('click', showHumanPileModal);
+      statsEl.appendChild(link);
+    } else {
+      statsEl.appendChild(document.createTextNode('0'));
+    }
+    statsEl.appendChild(document.createTextNode(' · TOTAL: ' + G.totals[0]));
     const handRow = document.getElementById('human-hand');
     handRow.innerHTML = '';
     const legal = (M && !M.missionOver && M.currentTurn === 0 && M.awaitingHumanCard)
@@ -265,7 +419,16 @@
   }
   function renderCenter(){
     const G = S.G, M = S.M;
-    document.getElementById('reserve-text').textContent = 'RESERVE: ' + M.reserve.length;
+    const stack = document.getElementById('reserve-stack');
+    if (stack){
+      stack.innerHTML = '';
+      for (let i = 0; i < M.reserve.length; i++){
+        const mini = document.createElement('div');
+        mini.className = 'card-mini';
+        mini.title = 'Reserve card (face-down)';
+        stack.appendChild(mini);
+      }
+    }
     document.getElementById('invasion-banner').classList.toggle('hidden', !M.invasionActive);
     document.getElementById('led-suit-tag').textContent = M.ledSuit
       ? ('Led suit: ' + E.SUIT_SYMBOL[M.ledSuit] + ' ' + E.SUIT_FACTION[M.ledSuit]) : '';
@@ -274,9 +437,23 @@
     for (const play of M.currentTrick){
       const slot = document.createElement('div'); slot.className = 'trick-slot';
       const who = document.createElement('div'); who.className = 'who';
-      who.textContent = play.who === 'ANDROMEDAN' ? 'ANDROMEDAN' : G.players[play.playerIdx].name;
+      if (play.who === 'ANDROMEDAN'){
+        who.textContent = 'ANDROMEDAN';
+        who.style.background = 'var(--spade)';
+        who.style.color = '#000';
+      } else {
+        const player = G.players[play.playerIdx];
+        who.textContent = player.name;
+        who.style.background = player.color;
+        who.style.color = '#000';
+      }
       slot.appendChild(who);
       slot.appendChild(renderCardEl(play.card, false));
+      if (play.timestamp){
+        const ts = document.createElement('div'); ts.className = 'play-timestamp';
+        ts.textContent = formatTime(play.timestamp);
+        slot.appendChild(ts);
+      }
       slots.appendChild(slot);
     }
   }
@@ -293,6 +470,52 @@
   }
 
   /* ============================================================ Scoreboards ============================================================ */
+  /* Show the human player's capture pile in a read-only dialog. Sorts by
+     suit so the contents are easy to scan. Cancelled cards (Orac) are dimmed
+     and tagged with strike-through value. Closes back to play. */
+  function showHumanPileModal(){
+    ensureModalRefs();
+    const G = S.G;
+    const human = G.players[0];
+    const sorted = human.pile.slice().sort(cardSort);
+    const livePts = human.pile.reduce((s, c) => s + ((c._cancelled || c._assassinated) ? 0 : E.basePoints(c)), 0);
+
+    modalBox.innerHTML = '';
+    const h = document.createElement('h3'); h.textContent = 'Your Capture Pile'; modalBox.appendChild(h);
+    const sub = document.createElement('div'); sub.className = 'sub';
+    const cancelledCount = human.pile.filter(c => c._cancelled || c._assassinated).length;
+    sub.textContent = human.pile.length + ' card' + (human.pile.length === 1 ? '' : 's') +
+                      ' captured · current value ' + (livePts >= 0 ? '+' : '') + livePts +
+                      (cancelledCount > 0 ? ' (' + cancelledCount + ' nullified)' : '');
+    modalBox.appendChild(sub);
+
+    if (sorted.length){
+      const optsWrap = document.createElement('div'); optsWrap.className = 'modal-options';
+      sorted.forEach(c => {
+        const wrap = document.createElement('div'); wrap.className = 'modal-card-opt';
+        const cardEl = renderCardEl(c, false);
+        if (c._cancelled || c._assassinated) cardEl.classList.add('disabled');
+        wrap.appendChild(cardEl);
+        const lbl = document.createElement('div'); lbl.className = 'lbl';
+        const valTxt = (E.basePoints(c) >= 0 ? '+' : '') + E.basePoints(c);
+        lbl.innerHTML = E.cardName(c) + '<br>' +
+          ((c._cancelled || c._assassinated)
+            ? '<span style="text-decoration:line-through;opacity:0.6;">' + valTxt + '</span>'
+            : valTxt);
+        wrap.appendChild(lbl);
+        optsWrap.appendChild(wrap);
+      });
+      modalBox.appendChild(optsWrap);
+    }
+
+    const foot = document.createElement('div'); foot.className = 'modal-foot';
+    const okBtn = document.createElement('button'); okBtn.className = 'primary'; okBtn.textContent = 'Back to Play';
+    okBtn.addEventListener('click', closeModal);
+    foot.appendChild(okBtn);
+    modalBox.appendChild(foot);
+    modalRoot.classList.add('open');
+  }
+
   function showScoreboardModal(){
     ensureModalRefs();
     const G = S.G;
@@ -395,10 +618,10 @@
   R.ui = {
     renderAll, renderHeader, renderSeats, renderHumanHand, renderCenter,
     renderCardEl, renderCardBackEl,
-    askButtons, askCards, askInfo, closeModal, showInfoBanner,
+    askButtons, askCards, askPairOfCards, askInfo, closeModal, showInfoBanner,
     logSystem, logChat, say, showBubble, escapeHtml,
     getHumanCard, setCenterMsg,
-    showScoreboardModal, showScoringModal, showFinalResults,
-    cardSort, attachUiHandlers
+    showScoreboardModal, showScoringModal, showFinalResults, showHumanPileModal,
+    cardSort, attachUiHandlers, animateTrickCapture, formatTime, awaitContinue
   };
 })();

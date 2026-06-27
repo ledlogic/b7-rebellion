@@ -94,7 +94,7 @@
       const lowest = draws.filter(d => d.val === minVal);
       if (lowest.length === 1){
         dealerIdx = lowest[0].p.idx;
-        msg.textContent = lowest[0].p.name + ' draws lowest and deals first.';
+        msg.textContent = E.subj(lowest[0].p.name, 'draws') + ' lowest and ' + E.verbFor(lowest[0].p.name, 'deals') + ' first.';
       } else {
         msg.textContent = 'Tie for lowest — redrawing...';
         await E.sleep(900);
@@ -102,7 +102,21 @@
     }
     if (dealerIdx === -1) dealerIdx = Math.floor(Math.random() * n);
     S.G.startDealer = dealerIdx;
-    await E.sleep(1000);
+
+    /* Wait for the user to click before transitioning to the game screen,
+       so they can read who's dealing first. */
+    await new Promise(resolve => {
+      const drawSection = document.getElementById('dealer-draw-section');
+      const proceedBtn = document.createElement('button');
+      proceedBtn.className = 'primary';
+      proceedBtn.textContent = 'Begin Mission';
+      proceedBtn.style.marginTop = '14px';
+      drawSection.appendChild(proceedBtn);
+      proceedBtn.addEventListener('click', () => {
+        proceedBtn.remove();
+        resolve();
+      }, { once:true });
+    });
 
     document.getElementById('setup-screen').style.display = 'none';
     document.getElementById('game-screen').classList.add('active');
