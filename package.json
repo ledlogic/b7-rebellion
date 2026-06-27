@@ -1,0 +1,13 @@
+{
+  "name": "rebellion",
+  "version": "2.20.0",
+  "description": "Rebellion — a Blake's 7-themed trick-taking card game (HTML/JS, offline, single-page).",
+  "private": true,
+  "scripts": {
+    "docs": "jsdoc -c jsdoc.json",
+    "docs:open": "jsdoc -c jsdoc.json && open docs/index.html"
+  },
+  "devDependencies": {
+    "jsdoc": "^4.0.0"
+  }
+}
