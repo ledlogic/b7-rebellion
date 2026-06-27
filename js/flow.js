@@ -34,7 +34,8 @@
     S.initMissionState(dealerIdx);
     UI.renderAll();
     const G = S.G, M = S.M;
-    UI.setCenterMsg('Cards dealt. Reserve of ' + M.reserve.length + ' set aside. ' + E.subj(G.players[M.leadIdx].name, 'leads') + '.');
+    UI.setCenterMsgHTML('Cards dealt. Reserve of ' + M.reserve.length + ' set aside. ' +
+      UI.playerChip(G.players[M.leadIdx]) + ' ' + E.verbFor(G.players[M.leadIdx].name, 'leads') + '.');
     UI.logSystem('— MISSION ' + (G.missionIndex+1) + ' BEGINS — Dealer: ' + G.players[dealerIdx].name + ' · Reserve: ' + M.reserve.length + ' cards —');
     for (const p of G.players){ if (!p.isHuman) UI.say(p, 'start'); await E.sleep(120); }
     await E.sleep(700);
@@ -104,16 +105,40 @@
     }
     const winner = G.players[winnerIdx];
     const cards = trick.map(p => p.card);
-    UI.setCenterMsg(E.subj(winner.name, 'wins') + ' the trick.');
+    UI.setCenterMsgHTML(UI.playerChip(winner) + ' ' + E.verbFor(winner.name, 'wins') + ' the trick.');
     UI.logSystem(E.subj(winner.name, 'wins') + ' the trick (' + cards.map(E.cardLabel).join(' ') + ').');
+
+    /* Lift the winner's seat/area for emphasis while the player reads the
+       result. The elevation persists through the awaitContinue pause and
+       the card animation so cards land on the (elevated) target. */
+    const elevatedEl = UI.elevateWinnerSeat(winnerIdx);
 
     /* Pause for the player to read who won. Cards stay on the table until
        they click Continue, then fly to the winner's name. */
     await UI.awaitContinue('Continue');
+
+    /* Compute the running effective score (winner's pile total *including*
+       what they're about to capture, with cancelled/assassinated cards
+       counted as 0). Asterisk if any captured card carries an in-play or
+       end-game scoring power. */
+    const pileScore  = winner.pile.reduce((s, c) => s + ((c._cancelled || c._assassinated) ? 0 : E.basePoints(c)), 0);
+    const trickScore = cards.reduce((s, c) => s + E.basePoints(c), 0);
+    const effective  = pileScore + trickScore;
+    const hasPower   = cards.some(c => {
+      const meta = E.cardMeta(c);
+      return !!(meta && (meta.power || meta.scorePower));
+    });
+
+    /* Fire the score flash concurrent with the card animation so they fade
+       together. animateTrickCapture awaits 620ms; the flash uses the same. */
+    UI.showWinScoreFlash(effective, hasPower);
     await UI.animateTrickCapture(winnerIdx);
     M.currentTrick = [];
 
     winner.pile.push(...cards);
+
+    /* Drop the winner back down to their normal row. */
+    UI.clearWinnerElevation(elevatedEl);
 
     const trickPts = cards.reduce((s, c) => s + E.basePoints(c), 0);
     if (!winner.isHuman) UI.say(winner, trickPts >= 0 ? 'winGood' : 'winBad');
@@ -215,7 +240,7 @@
       await resolveTrickEnd(M.currentTrick, 'ANDROMEDAN', true);
       return;
     }
-    UI.setCenterMsg(E.subj(G.players[winnerIdx].name, 'repels') + ' the wave!');
+    UI.setCenterMsgHTML(UI.playerChip(G.players[winnerIdx]) + ' ' + E.verbFor(G.players[winnerIdx].name, 'repels') + ' the wave!');
     UI.logSystem(E.subj(G.players[winnerIdx].name, 'repels') + ' the Andromedan wave and claims the trick.');
     const winner = G.players[winnerIdx];
     if (!winner.isHuman) UI.say(winner, 'andromedan');

@@ -13,7 +13,7 @@
   /* ---- Build player count buttons (3..7) ---- */
   const countRow = document.getElementById('count-row');
   let chosenCount = null;
-  for (let n = 3; n <= 7; n++){
+  for (let n = 2; n <= 7; n++){
     const b = document.createElement('button');
     b.textContent = n; b.dataset.n = n;
     b.addEventListener('click', () => {
@@ -47,6 +47,10 @@
 
   async function startGameSetup(){
     document.getElementById('btn-start').disabled = true;
+    /* Switch the setup-card to its "dealer" stage — player count and AI
+       difficulty are now locked in, so we hide those sections and the
+       instructional blurb to give the dealer-draw its own clean dialog. */
+    document.querySelector('.setup-card').classList.add('dealer-mode');
     const n = chosenCount;
     const personaPool = R.personas.pickN(n - 1);
     const players = [];
@@ -79,13 +83,18 @@
         p, card: deck[i],
         val: E.isJoker(deck[i]) ? 10 : E.basePoints(deck[i])
       }));
+      /* Sort ascending so the leftmost card is the lowest (= dealer).
+         No elevation on the winning cell — the order itself is the cue. */
+      draws.sort((a, b) => a.val - b.val);
       drawRow.innerHTML = '';
       for (const d of draws){
-        const wrap = document.createElement('div'); wrap.style.textAlign = 'center';
+        const wrap = document.createElement('div');
+        wrap.className = 'dealer-draw-cell';
+        wrap.dataset.pidx = d.p.idx;
         wrap.appendChild(UI.renderCardEl(d.card, false));
         const lbl = document.createElement('div');
-        lbl.style.fontSize = '11px'; lbl.style.marginTop = '4px'; lbl.style.color = 'var(--muted)';
-        lbl.textContent = d.p.name + ' (' + d.val + ')';
+        lbl.style.fontSize = '11px'; lbl.style.marginTop = '6px';
+        lbl.innerHTML = UI.playerChip(d.p) + ' <span style="font-family:monospace;color:var(--muted);">(' + d.val + ')</span>';
         wrap.appendChild(lbl);
         drawRow.appendChild(wrap);
         await E.sleep(180);
@@ -109,7 +118,7 @@
       const drawSection = document.getElementById('dealer-draw-section');
       const proceedBtn = document.createElement('button');
       proceedBtn.className = 'primary';
-      proceedBtn.textContent = 'Begin Mission';
+      proceedBtn.textContent = 'Begin First Mission';
       proceedBtn.style.marginTop = '14px';
       drawSection.appendChild(proceedBtn);
       proceedBtn.addEventListener('click', () => {

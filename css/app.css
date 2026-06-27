@@ -70,6 +70,29 @@ button.danger{border-color:var(--spade);color:var(--spade);}
 .setup-foot{margin-top:30px;display:flex;justify-content:flex-end;gap:10px;}
 .setup-blurb{font-size:13px;color:var(--dim);line-height:1.6;margin-top:18px;border-top:1px solid var(--border);padding-top:16px;}
 
+/* Once the user clicks "Determine Dealer", the setup-card switches into
+   dealer-mode: settings are locked, so we hide the count / AI / blurb /
+   foot sections and let the dealer-draw section be its own clean stage. */
+.setup-card.dealer-mode .setup-section:not(#dealer-draw-section),
+.setup-card.dealer-mode .setup-blurb,
+.setup-card.dealer-mode .setup-foot{
+  display:none !important;
+}
+
+/* Flavor excerpt shown above the dealer-draw — quoted-block style with
+   an amber accent bar to signal "this is from the rulebook." */
+.dealer-flavor{
+  font-size:12.5px;
+  color:var(--muted);
+  font-style:italic;
+  line-height:1.65;
+  margin:10px 0 16px;
+  padding:12px 14px;
+  background:rgba(255,255,255,0.025);
+  border-left:2px solid var(--amber);
+  border-radius:0 4px 4px 0;
+}
+
 /* ---------- Game Screen ---------- */
 #game-screen{display:none;min-height:100vh;flex-direction:column;}
 #game-screen.active{display:flex;}
@@ -145,15 +168,16 @@ header.topbar{
   height:148px;   /* fixed so timestamps don't shift cards around between renders */
 }
 .trick-slot{display:flex;flex-direction:column;align-items:center;gap:4px;}
-.trick-slot .who{
+.player-chip{
+  display:inline-block;
   font-size:10px;
   text-transform:uppercase;
   letter-spacing:0.05em;
   font-weight:700;
   padding:3px 8px;
   border-radius:3px;
-  /* background + color set inline per-player */
   box-shadow:0 1px 2px rgba(0,0,0,0.4);
+  vertical-align:baseline;
 }
 .play-timestamp{
   font-family:monospace;
@@ -199,25 +223,68 @@ header.topbar{
 .led-suit-tag{font-family:monospace;font-size:11px;color:var(--muted);}
 .center-msg{font-size:13px;color:var(--muted);text-align:center;min-height:18px;}
 
-.human-area{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+.human-area{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;transition:transform 0.4s ease-out;}
 .human-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
-.human-head .name{font-weight:700;font-size:14px;color:var(--teal);}
+.human-head .name{font-weight:700;font-size:14px;color:#c0c0c0;}
 .human-head .stats{font-family:monospace;font-size:11px;color:var(--muted);}
 .human-head .stats .pile-link{
-  color:var(--teal);
+  color:#c0c0c0;
   cursor:pointer;
   text-decoration:underline;
   text-decoration-style:dotted;
-  text-decoration-color:rgba(63,193,181,0.45);
+  text-decoration-color:rgba(192,192,192,0.45);
   text-underline-offset:2px;
   padding:0 2px;
   border-radius:3px;
   transition:background-color .12s ease, text-decoration-color .12s ease;
 }
 .human-head .stats .pile-link:hover{
-  background:rgba(63,193,181,0.12);
-  text-decoration-color:var(--teal);
+  background:rgba(192,192,192,0.14);
+  text-decoration-color:#c0c0c0;
 }
+
+/* Universal "winning" elevation — works on any element that has a transform
+   transition declared on its base style (.seat, .human-area, .dealer-draw-cell). */
+.seat{transition:transform 0.4s ease-out;}
+.winning-seat{
+  transform:translateY(-20px);
+}
+
+/* Cell for each card+name pair shown during the dealer-draw flow.
+   Internal layout stays vertical (card on top, label beneath); the cells
+   themselves flow horizontally via the .modal-options defaults. */
+.dealer-draw-cell{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  text-align:center;
+  transition:transform 0.4s ease-out;
+}
+
+/* Big score readout that appears in the center while cards fly to the
+   winner, then scales down and fades to 0 over the same ~620ms. */
+.win-score{
+  position:absolute;
+  left:50%; top:50%;
+  transform:translate(-50%, -50%) scale(1);
+  opacity:1;
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+  font-size:78px;
+  font-weight:900;
+  letter-spacing:0.02em;
+  text-shadow:0 0 14px rgba(0,0,0,0.65);
+  transition:transform 0.62s ease-in, opacity 0.62s ease-in;
+  pointer-events:none;
+  z-index:6;
+  white-space:nowrap;
+}
+.win-score.fade-out{
+  transform:translate(-50%, -50%) scale(0.16);
+  opacity:0;
+}
+.win-score.pos{color:var(--good);}
+.win-score.neg{color:var(--bad);}
+.win-score.zero{color:var(--muted);}
 .hand-row{display:flex;gap:6px;flex-wrap:wrap;min-height:96px;align-items:flex-end;}
 
 .card{

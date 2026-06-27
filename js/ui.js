@@ -84,6 +84,38 @@
     return hh + ':' + mm + ':' + ss;
   }
 
+  /* Lift the winner's seat (or human-area) 20px so it's visually marked.
+     Returns the element so the caller can pass it back to clearWinnerElevation. */
+  function elevateWinnerSeat(winnerIdx){
+    if (winnerIdx === 'ANDROMEDAN') return null;
+    const el = (winnerIdx === 0)
+      ? document.querySelector('.human-area')
+      : document.querySelector('.seat[data-idx="' + winnerIdx + '"]');
+    if (el) el.classList.add('winning-seat');
+    return el;
+  }
+  function clearWinnerElevation(el){
+    if (el) el.classList.remove('winning-seat');
+  }
+
+  /* Big centered score readout. Fires concurrently with animateTrickCapture
+     so the score fades out as the cards arrive at the winner. */
+  function showWinScoreFlash(score, hasPower){
+    const centerArea = document.getElementById('center-area');
+    if (!centerArea) return;
+    const cls = score > 0 ? 'pos' : (score < 0 ? 'neg' : 'zero');
+    const el = document.createElement('div');
+    el.className = 'win-score ' + cls;
+    el.textContent = (score >= 0 ? '+' : '') + score + (hasPower ? '*' : '');
+    centerArea.appendChild(el);
+    /* Two rAFs so the initial state is painted before the transition class
+       is added — otherwise the browser may collapse to the final state. */
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { el.classList.add('fade-out'); });
+    });
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 720);
+  }
+
   /* Animate played cards flying up to the winner's name. Cards translate
      toward the destination, shrink, and fade. Sibling labels (who, timestamp)
      fade in place so the slot is visually emptied by the end. After the
@@ -436,7 +468,7 @@
     slots.innerHTML = '';
     for (const play of M.currentTrick){
       const slot = document.createElement('div'); slot.className = 'trick-slot';
-      const who = document.createElement('div'); who.className = 'who';
+      const who = document.createElement('div'); who.className = 'who player-chip';
       if (play.who === 'ANDROMEDAN'){
         who.textContent = 'ANDROMEDAN';
         who.style.background = 'var(--spade)';
@@ -458,13 +490,28 @@
     }
   }
   function setCenterMsg(text){ document.getElementById('center-msg').textContent = text; }
+  function setCenterMsgHTML(html){ document.getElementById('center-msg').innerHTML = html; }
+
+  /* Build a colored player-chip HTML span for inline use in center messages.
+     Pass a player object, or the string 'ANDROMEDAN' for the invader. */
+  function playerChip(playerOrSpecial){
+    if (playerOrSpecial === 'ANDROMEDAN'){
+      return '<span class="player-chip" style="background:var(--spade);color:#000;">ANDROMEDAN</span>';
+    }
+    const p = playerOrSpecial;
+    return '<span class="player-chip" style="background:' + escapeAttr(p.color) + ';color:#000;">' +
+           escapeHtml(p.name) + '</span>';
+  }
 
   /* ============================================================ Human card bridge ============================================================ */
   function getHumanCard(legal){
     const M = S.M;
     return new Promise(resolve => {
       M.awaitingHumanCard = true;
-      M._humanResolve = resolve;
+      M._humanResolve = (card) => {
+        setCenterMsg('');   // wipe any "Your move" / "respond to wave" prompt immediately
+        resolve(card);
+      };
       renderAll();
     });
   }
@@ -620,8 +667,9 @@
     renderCardEl, renderCardBackEl,
     askButtons, askCards, askPairOfCards, askInfo, closeModal, showInfoBanner,
     logSystem, logChat, say, showBubble, escapeHtml,
-    getHumanCard, setCenterMsg,
+    getHumanCard, setCenterMsg, setCenterMsgHTML, playerChip,
     showScoreboardModal, showScoringModal, showFinalResults, showHumanPileModal,
-    cardSort, attachUiHandlers, animateTrickCapture, formatTime, awaitContinue
+    cardSort, attachUiHandlers, animateTrickCapture, formatTime, awaitContinue,
+    elevateWinnerSeat, clearWinnerElevation, showWinScoreFlash
   };
 })();

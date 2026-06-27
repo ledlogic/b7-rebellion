@@ -72,6 +72,7 @@
   function isHeartAce(c){ return c.suit === 'H' && c.rank === 'A'; }
 
   const DEAL_TABLE = {
+    2:{reserve:5, hand:24},
     3:{reserve:5, hand:16},
     4:{reserve:5, hand:12},
     5:{reserve:3, hand:10},

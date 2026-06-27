@@ -15,11 +15,11 @@
       <div class="glyph">FEDERATION ENCRYPTED CHANNEL // PRIVATE GAME</div>
       <h1>REBELLION</h1>
       <p>A Trick-Taking Game of Crew, Tech, Hazards &amp; the Federation</p>
-      <div class="version">VERSION 2.01 // MODULAR BUILD</div>
+      <div class="version">VERSION 2.16 // MODULAR BUILD</div>
     </div>
 
     <div class="setup-section">
-      <label class="title">How many players at the table? (3–7)</label>
+      <label class="title">How many players at the table? (2–7)</label>
       <div class="count-row" id="count-row"></div>
     </div>
 
@@ -33,6 +33,12 @@
 
     <div class="setup-section" id="dealer-draw-section" style="display:none;">
       <label class="title">Drawing for first deal...</label>
+      <div class="dealer-flavor">
+        Federation custom dictates that the lowest card deals. In a society where rank governs
+        every transaction, the small task of distributing the deck falls to the citizen of
+        weakest standing &mdash; status determines service, and service is the order. The hands
+        you are dealt may prove unjust, but the dealing itself, at least, is honest enough.
+      </div>
       <div id="dealer-draw-row" class="modal-options"></div>
       <div class="center-msg" id="dealer-draw-msg"></div>
     </div>
@@ -44,7 +50,7 @@
     </div>
 
     <div class="setup-foot">
-      <button class="primary" id="btn-start" disabled>Deal the Cards</button>
+      <button class="primary" id="btn-start" disabled>Determine Dealer</button>
     </div>
   </div>
 </div>

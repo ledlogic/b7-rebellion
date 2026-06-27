@@ -18,7 +18,7 @@
         persona,
         aiLevel: isHuman ? null : (aiLevel || 'delta'),
         name: isHuman ? 'You' : persona.name,
-        color: isHuman ? '#3fc1b5' : persona.color,
+        color: isHuman ? '#c0c0c0' : persona.color,
         hand: [], pile: [], total: 0,
         exposed: false, oracUsed: false
       };
