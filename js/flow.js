@@ -1,11 +1,19 @@
-/* Rebellion — flow.js
+/* Rebellion — flow.js  v2.42
  * Mission/trick orchestration. Owns the per-mission loop: alternates between
  * normal tricks and invasion waves, dispatches AI/human card choices, fires
- * capture powers, checks the Full Crew opportunity, runs the 5-step scoring,
- * and resolves the final standings.
+ * capture powers, checks the Full Crew opportunity, runs scoring, and resolves
+ * final standings.
  *
- * Reads/mutates Rebellion.state.{G,M}. Delegates display to Rebellion.ui and
- * card-pick decisions to Rebellion.ai.
+ * v2.42 changes:
+ *   - Scoring reordered: 1-Orac, 2-Zen+Lib+AsteroidField, 3-Gauda Prime,
+ *     4-Mutoid, 5-IMIPAK, 7-Psycho-Strategist's Gambit
+ *   - Dayna Mellanby (10♣): conditional +10 (Star One battle must have occurred)
+ *   - IMIPAK / Orac: target filter uses isPersonCard (Hearts, Spades, Dayna, Vila)
+ *   - Vila leads: capturer declares the suit that must be followed
+ *   - Andromedan leads Vila → "Vila's Galactic Bluff" — Mission ends, no scoring
+ *   - Anna Grant compulsion passed via currentTrick to legalPlays
+ *   - Full Crew: Gan (10♥) does NOT count as a Heart face card
+ *   - Star One + Liberator same trick: detonation intercepted, Mission continues
  */
 (function () {
   'use strict';
@@ -24,9 +32,6 @@
         const dealerIdx = (G.startDealer + m) % G.numPlayers;
         await runMission(dealerIdx);
       }
-      /* Persist the completed game to localStorage BEFORE showing final
-         results, so even if the user closes the tab from the modal the row
-         is already saved. */
       UI.saveGameToHistory(buildHistoryEntry());
       await UI.showFinalResults(runMission);
     } catch (err){
@@ -35,14 +40,6 @@
     }
   }
 
-  /**
-   * Build a serializable snapshot of the just-finished game for the
-   * localStorage history. Excludes hand/pile card lists (too noisy and
-   * unbounded across many games) but preserves final totals, personas,
-   * mission count, and timing.
-   *
-   * @returns {Object}
-   */
   function buildHistoryEntry(){
     const G = S.G;
     const totals = G.totals.slice();
@@ -54,7 +51,7 @@
       numPlayers: G.numPlayers,
       difficulty: G.difficulty,
       systemName: G.systemName || null,
-      missions:   G.numPlayers,   // game length = numPlayers missions
+      missions:   G.numPlayers,
       players: G.players.map(p => ({
         idx: p.idx,
         name: p.name,
@@ -70,8 +67,6 @@
 
   async function runMission(dealerIdx){
     S.initMissionState(dealerIdx);
-    /* Stamp the GAME timer once, on the first mission. The MISSION timer is
-       reset every time initMissionState builds a new M. */
     if (S.G.gameStartedAt == null) S.G.gameStartedAt = Date.now();
     UI.startTimers();
     UI.renderAll();
@@ -96,10 +91,14 @@
     await E.sleep(300);
     if (S.M.missionResult === 'andromedan'){
       UI.setCenterMsg('The Andromedan tide breaks through. No scoring this Mission.');
-      UI.logSystem('☠ THE ANDROMEDANS BREAK THROUGH — Mission ends. No one scores.');
+      UI.logAndromedan('☠ THE ANDROMEDANS BREAK THROUGH — Mission ends. No one scores.');
       await UI.showInfoBanner('Mission Lost', 'The Andromedan wave could not be repelled. This Mission scores nothing for anyone.');
+    } else if (S.M.missionResult === 'vilaBluff'){
+      UI.setCenterMsg("Vila's Galactic Bluff succeeds. The Andromedans stand down. No scoring this Mission.");
+      UI.logAndromedan("🃏 VILA'S GALACTIC BLUFF — The Andromedans are talked out of it entirely. Nobody scores.");
+      await UI.showInfoBanner("Vila's Galactic Bluff", "Vila apparently convinced the Andromedan fleet they've attacked entirely the wrong galaxy. The Mission ends — nobody scores, nobody wins, nobody quite knows what just happened.");
     } else {
-      const breakdown = scoreMission();
+      const breakdown = await scoreMission();
       await UI.showScoringModal(breakdown);
     }
   }
@@ -109,8 +108,11 @@
     const G = S.G, M = S.M;
     M.trickNumber++;
     M.currentTrick = [];
-    M.ledSuit = null;
-    UI.setCenterMsg('');   // wipe the previous trick's "X wins the trick" announcement
+    /* If the previous trick was led by Vila, M.vilaLedSuit was declared then.
+       Use it as the forced ledSuit for this trick, then clear it. */
+    M.ledSuit = M.vilaLedSuit || null;
+    M.vilaLedSuit = null;
+    UI.setCenterMsg('');
     UI.renderAll();
     UI.logLayoutMetrics('trick-' + M.trickNumber + '-start');
     const order = [];
@@ -120,13 +122,19 @@
       M.currentTurn = pIdx;
       UI.renderAll();
       const player = G.players[pIdx];
-      const legal = E.legalPlays(player.hand, M.ledSuit);
+      const legal = E.legalPlays(player.hand, M.ledSuit, M.currentTrick);
       let card;
       if (player.isHuman){
-        UI.setCenterMsg('Your move — play a legal card.');
+        // Show Anna Grant compulsion notice if applicable
+        if (legal.length === 1 && legal[0].suit === 'H' && legal[0].rank === 'A' &&
+            M.currentTrick.some(p => p.card.suit === 'S' && p.card.rank === '10')){
+          UI.setCenterMsg('Anna Grant is in the trick — you must play Avon (A♥) immediately!');
+        } else {
+          UI.setCenterMsg('Your move — play a legal card.');
+        }
         card = await UI.getHumanCard(legal);
       } else {
-        await E.sleep(200);  // brief deliberation beat
+        await E.sleep(200);
         card = R.ai.chooseCard(player, legal, M.currentTrick, M.ledSuit, false);
         if (M.currentTrick.length === 0) UI.say(player, 'lead');
       }
@@ -136,7 +144,7 @@
       if (!M.ledSuit && !C.isJoker(card)) M.ledSuit = card.suit;
       S.recordPlay(pIdx, card, ledSuitBefore);
       UI.renderAll();
-      await E.sleep(800);   // 1s total inter-move pacing (200 think + 800 = 1000)
+      await E.sleep(800);
     }
 
     const winnerIdx = E.resolveTrickWinner(M.currentTrick, M.ledSuit);
@@ -148,7 +156,7 @@
     if (winnerIdx === 'ANDROMEDAN'){
       M.missionOver = true; M.missionResult = 'andromedan';
       UI.setCenterMsg('The Andromedan card takes the trick!');
-      UI.logSystem('The Andromedan wave wins the trick — incursion successful.');
+      UI.logAndromedan('The Andromedan wave wins the trick — incursion successful.');
       return;
     }
     const winner = G.players[winnerIdx];
@@ -156,19 +164,9 @@
     UI.setCenterMsgHTML(UI.playerChip(winner) + ' ' + E.verbFor(winner.name, 'wins') + ' the trick.');
     UI.logSystem(E.subj(winner.name, 'wins') + ' the trick (' + cards.map(C.cardLabel).join(' ') + ').');
 
-    /* Lift the winner's seat/area for emphasis while the player reads the
-       result. The elevation persists through the awaitContinue pause and
-       the card animation so cards land on the (elevated) target. */
     const elevatedEl = UI.elevateWinnerSeat(winnerIdx);
-
-    /* Pause for the player to read who won. Cards stay on the table until
-       they click Continue, then fly to the winner's name. */
     await UI.awaitContinue('Continue');
 
-    /* Compute the running effective score (winner's pile total *including*
-       what they're about to capture, with cancelled/assassinated cards
-       counted as 0). Asterisk if any captured card carries an in-play or
-       end-game scoring power. */
     const pileScore  = winner.pile.reduce((s, c) => s + ((c._cancelled || c._assassinated) ? 0 : C.basePoints(c)), 0);
     const trickScore = cards.reduce((s, c) => s + C.basePoints(c), 0);
     const effective  = pileScore + trickScore;
@@ -177,15 +175,15 @@
       return !!(meta && (meta.power || meta.scorePower));
     });
 
-    /* Fire the score flash concurrent with the card animation so they fade
-       together. animateTrickCapture awaits 620ms; the flash uses the same. */
     UI.showWinScoreFlash(effective, hasPower);
     await UI.animateTrickCapture(winnerIdx);
     M.currentTrick = [];
 
-    winner.pile.push(...cards);
+    // Check: Star One (A♣) captured in same trick as Liberator (Q♦) → intercept
+    const hasStarOne   = cards.some(c => c.suit === 'C' && c.rank === 'A');
+    const hasLiberator = cards.some(c => c.suit === 'D' && c.rank === 'Q');
 
-    /* Drop the winner back down to their normal row. */
+    winner.pile.push(...cards);
     UI.clearWinnerElevation(elevatedEl);
 
     const trickPts = cards.reduce((s, c) => s + C.basePoints(c), 0);
@@ -201,7 +199,7 @@
       if (M.missionOver) return;
     }
 
-    /* Full Crew check (global, once per mission) */
+    /* Full Crew check (global, once per mission) — Gan (10♥) does NOT count */
     if (!M.fullCrewClaimed && M.reserve.length > 0){
       if (C.pileHas(winner.pile, 'H', 'A') && winner.pile.some(C.isHeartFace)){
         await resolveFullCrew(winner);
@@ -209,15 +207,23 @@
       }
     }
 
-    /* Star One ends the mission */
-    if (cards.some(c => c.suit === 'C' && c.rank === 'A')){
-      M.missionOver = true; M.missionResult = 'starOne';
-      UI.setCenterMsg('STAR ONE has been captured. Mission ends immediately.');
-      UI.logSystem('☢ STAR ONE CAPTURED by ' + winner.name + ' — Mission ends immediately. Cards still in hand score nothing.');
-      if (!winner.isHuman) UI.say(winner, 'starOne');
-      UI.renderAll();
-      await E.sleep(900);
-      return;
+    /* Star One ends the mission — unless Liberator intercepted it */
+    if (hasStarOne){
+      if (hasLiberator){
+        UI.logSystem('🚀 LIBERATOR INTERCEPTS: Star One detonation cancelled. The Mission continues.');
+        UI.setCenterMsg('The Liberator intercepts Star One. Mission continues!');
+        M.starOneBattleOccurred = true; // counts for Dayna
+        await E.sleep(900);
+      } else {
+        M.missionOver = true; M.missionResult = 'starOne';
+        M.starOneBattleOccurred = true;
+        UI.setCenterMsg('STAR ONE has been captured. Mission ends immediately.');
+        UI.logSystem('☢ STAR ONE CAPTURED by ' + winner.name + ' — Mission ends immediately. Cards still in hand score nothing.');
+        if (!winner.isHuman) UI.say(winner, 'starOne');
+        UI.renderAll();
+        await E.sleep(900);
+        return;
+      }
     }
 
     M.leadIdx = winnerIdx;
@@ -228,8 +234,45 @@
       await E.sleep(300);
       return;
     }
+
+    /* Vila leads: if Vila was the FIRST card played in this trick (the lead),
+       the player who played it declares the suit for the NEXT trick.
+       We set M.vilaLedSuit here; playNormalTrick picks it up as ledSuit. */
+    const firstPlay = trick[0];
+    if (firstPlay && C.isJoker(firstPlay.card) && firstPlay.playerIdx !== 'ANDROMEDAN'){
+      const declarer = G.players[firstPlay.playerIdx];
+      await resolveVilaLeadSuitDeclaration(declarer);
+    }
+
     UI.renderAll();
     await E.sleep(250);
+  }
+
+  /**
+   * When Vila leads a trick (is the first card played), the player who
+   * played Vila declares which suit must be followed for that trick.
+   * In practice in our flow, the winner of the previous trick leads — if
+   * they lead Vila, they declare here before the next trick starts.
+   */
+  async function resolveVilaLeadSuitDeclaration(declarer){
+    const M = S.M;
+    const suits = [
+      { label:'♥ Hearts', value:'H' },
+      { label:'♦ Diamonds', value:'D' },
+      { label:'♣ Clubs', value:'C' },
+      { label:'♠ Spades', value:'S' }
+    ];
+    if (declarer.isHuman){
+      const chosen = await UI.askButtons('Vila — Declare Suit',
+        'Vila leads this trick. You must declare which suit all other players must follow.',
+        suits.map(s => ({ label:s.label, value:s.value })));
+      M.vilaLedSuit = chosen;
+      UI.logSystem('Vila: ' + E.subj(declarer.name, 'declares') + ' ' + suits.find(s => s.value===chosen).label + ' as the required suit for this trick.');
+    } else {
+      // AI picks the suit most opponents are likely void in, or a random suit
+      M.vilaLedSuit = ['H','D','C','S'][Math.floor(Math.random()*4)];
+      UI.logSystem('Vila: ' + declarer.name + ' declares ' + suits.find(s => s.value===M.vilaLedSuit).label + ' as the required suit for this trick.');
+    }
   }
 
   function checkInvasionTrigger(){
@@ -239,7 +282,8 @@
     const handLen = G.players[0].hand.length;
     if (handLen === M.reserve.length){
       M.invasionActive = true;
-      UI.logSystem('⚠ ANDROMEDAN INCURSION BEGINS — hand size matches Reserve. The Andromedans now lead each trick.');
+      M.starOneBattleOccurred = true; // Andromedan invasion counts for Dayna
+      UI.logAndromedan('⚠ ANDROMEDAN INCURSION BEGINS — hand size matches Reserve. The Andromedans now lead each trick.');
       G.players.forEach(p => { if (!p.isHuman) UI.say(p, 'andromedan'); });
     }
   }
@@ -249,16 +293,28 @@
     const G = S.G, M = S.M;
     M.trickNumber++;
     M.currentTrick = [];
-    UI.setCenterMsg('');   // wipe any prior "wins" / "repels" announcement
+    UI.setCenterMsg('');
     if (M.reserve.length === 0){ M.invasionActive = false; return; }
     const andCard = M.reserve.shift();
     M.ledSuit = C.isJoker(andCard) ? null : andCard.suit;
     M.currentTrick.push({ playerIdx:'ANDROMEDAN', who:'ANDROMEDAN', card: andCard, timestamp: new Date() });
     S.recordPlay('ANDROMEDAN', andCard, null);
     UI.renderAll();
+
+    /* Vila's Galactic Bluff: Andromedan leads the Joker → Mission ends, nobody scores */
+    if (C.isJoker(andCard)){
+      UI.setCenterMsg("Vila's Galactic Bluff! The Andromedan leads Vila — the invasion is cancelled!");
+      UI.logAndromedan("🃏 VILA'S GALACTIC BLUFF — Andromedan leads Vila. The invasion is cancelled. Mission ends — nobody scores.");
+      M.missionOver = true;
+      M.missionResult = 'vilaBluff';
+      UI.renderAll();
+      await E.sleep(1200);
+      return;
+    }
+
     UI.setCenterMsg('The Andromedan reveals a card: ' + C.cardLabel(andCard));
-    UI.logSystem('Wave ' + M.trickNumber + ': The Andromedans lead with ' + C.cardLabel(andCard) + ' (' + C.cardName(andCard) + ').');
-    await E.sleep(1000);   // 1s before the first responder plays
+    UI.logAndromedan('Wave ' + M.trickNumber + ': The Andromedans lead with ' + C.cardLabel(andCard) + ' (' + C.cardName(andCard) + ').');
+    await E.sleep(1000);
 
     const order = [];
     for (let i = 0; i < G.numPlayers; i++) order.push((M.leadIdx + i) % G.numPlayers);
@@ -267,10 +323,15 @@
       M.currentTurn = pIdx;
       UI.renderAll();
       const player = G.players[pIdx];
-      const legal = E.legalPlays(player.hand, M.ledSuit);
+      const legal = E.legalPlays(player.hand, M.ledSuit, M.currentTrick);
       let card;
       if (player.isHuman){
-        UI.setCenterMsg('Andromedan wave — respond with a legal card.');
+        if (legal.length === 1 && legal[0].suit === 'H' && legal[0].rank === 'A' &&
+            M.currentTrick.some(p => p.card.suit === 'S' && p.card.rank === '10')){
+          UI.setCenterMsg('Anna Grant is in the wave — you must play Avon (A♥)!');
+        } else {
+          UI.setCenterMsg('Andromedan wave — respond with a legal card.');
+        }
         card = await UI.getHumanCard(legal);
       } else {
         await E.sleep(200);
@@ -291,7 +352,7 @@
       return;
     }
     UI.setCenterMsgHTML(UI.playerChip(G.players[winnerIdx]) + ' ' + E.verbFor(G.players[winnerIdx].name, 'repels') + ' the wave!');
-    UI.logSystem(E.subj(G.players[winnerIdx].name, 'repels') + ' the Andromedan wave and claims the trick.');
+    UI.logAndromedan(E.subj(G.players[winnerIdx].name, 'repels') + ' the Andromedan wave and claims the trick.');
     const winner = G.players[winnerIdx];
     if (!winner.isHuman) UI.say(winner, 'andromedan');
 
@@ -300,13 +361,14 @@
 
     if (M.reserve.length === 0){
       M.invasionActive = false;
-      UI.logSystem('Reserve exhausted — the incursion ends.');
+      UI.logAndromedan('Reserve exhausted — the incursion ends.');
     }
   }
 
   async function resolveFullCrew(winner){
     const M = S.M;
     if (M.reserve.length === 0){ M.fullCrewClaimed = true; return; }
+    M.starOneBattleOccurred = true; // Full Crew trigger counts for Dayna
     UI.logSystem('★ FULL CREW: ' + E.subj(winner.name, 'has') + ' Avon and a Liberator officer together. The Reserve is revealed!');
     M.fullCrewClaimed = true;
     const revealed = M.reserve.slice();
@@ -328,13 +390,35 @@
   }
 
   /* ============================================================ Scoring ============================================================ */
-  function scoreMission(){
+  async function scoreMission(){
     const G = S.G, M = S.M;
     const notes = [];
     const order = [];
     for (let i = 0; i < G.numPlayers; i++) order.push((M.dealerIdx + 1 + i) % G.numPlayers);
 
-    /* Step 1: Gauda Prime — any pile all numbered primes zeros ALL Hearts everywhere */
+    const battleOccurred = !!M.starOneBattleOccurred;
+
+    /* Step 1 — Orac: cancel one person card from any player's pile (optional, once per Mission) */
+    for (const pIdx of order){
+      const p = G.players[pIdx];
+      if (C.pileHas(p.pile, 'D', 'A') && !p.oracUsed){
+        await POW.powerOracCancel(p);
+        if (p.oracUsed) notes.push('Orac: ' + E.subj(p.name, 'cancels') + ' a person card\'s value this Mission.');
+      }
+    }
+
+    /* Step 2 — Zen + Liberator + Asteroid Field: if all three in same pile, Asteroid Field scores 0 */
+    for (const p of G.players){
+      if (C.pileHas(p.pile, 'D', 'K') && C.pileHas(p.pile, 'D', 'Q') && C.pileHas(p.pile, 'C', 'Q')){
+        const asteroidField = p.pile.find(c => c.suit === 'C' && c.rank === 'Q');
+        if (asteroidField && !asteroidField._cancelled){
+          asteroidField._cancelled = true;
+          notes.push('Zen + Liberator: Asteroid Field in ' + E.possessiveOf(p.name) + ' captured cards is negated — scores 0.');
+        }
+      }
+    }
+
+    /* Step 3 — Gauda Prime: any pile is all numbered primes → ALL Hearts in ALL piles score 0 */
     let gaudaTriggered = false; const gaudaBy = [];
     for (const p of G.players){
       if (p.pile.length > 0 && p.pile.every(c => !C.isJoker(c) && C.isNumbered(c) && C.isPrime(c))){
@@ -348,11 +432,7 @@
       notes.push('Gauda Prime triggered by ' + gaudaBy.join(', ') + ' — ALL Hearts in ALL piles are worth 0.');
     }
 
-    /* Step 2: Mutoid — mandatory Heart devour from own pile.
-       Prefer a Heart already cancelled (e.g. by Orac, Gauda Prime) — the
-       Mutoid's effect is wasted on a dead body and the player keeps every
-       live Heart. Otherwise the Mutoid drains the LOWEST-value live Heart
-       for blood serum (the least the player can afford to lose). */
+    /* Step 4 — Mutoid: mandatory Heart devour from own pile */
     for (const p of G.players){
       if (C.pileHas(p.pile, 'S', 'J')){
         const hearts = p.pile.filter(C.isHeart);
@@ -369,14 +449,17 @@
       }
     }
 
-    /* Step 3: IMIPAK — paired with another 10, assassinates any card */
+    /* Step 5 — IMIPAK: paired with another 10, assassinates a person card */
     for (const pIdx of order){
       const p = G.players[pIdx];
       const hasImipak = C.pileHas(p.pile, 'D', '10');
       const otherTens = p.pile.filter(c => !C.isJoker(c) && c.rank === '10' && c.suit !== 'D' && !c._assassinated);
       if (hasImipak && otherTens.length > 0){
+        // Valid targets: Hearts, Spades, Dayna (10♣), Vila — using isPersonCard
         const pool = [];
-        G.players.forEach(pp => pp.pile.forEach(c => { if (!c._cancelled && !c._assassinated) pool.push({ card:c, owner:pp }); }));
+        G.players.forEach(pp => pp.pile.forEach(c => {
+          if (!c._cancelled && !c._assassinated && C.isPersonCard(c)) pool.push({ card:c, owner:pp });
+        }));
         if (pool.length > 0){
           const pick = pool.sort((a, b) => C.basePoints(b.card) - C.basePoints(a.card))[0];
           pick.card._assassinated = true;
@@ -385,15 +468,37 @@
       }
     }
 
-    /* Step 4: totals */
+    /* Step 6 — Dayna Mellanby: +10 only if Star One battle occurred this Mission */
+    for (const p of G.players){
+      const dayna = p.pile.find(c => c.suit === 'C' && c.rank === '10');
+      if (dayna && !dayna._cancelled && !dayna._assassinated){
+        if (battleOccurred){
+          dayna._daynaBonus = true;
+          notes.push('Dayna Mellanby in ' + E.possessiveOf(p.name) + ' captured cards: Star One battle occurred — scores +10.');
+        } else {
+          dayna._daynaSuppressed = true;
+          notes.push('Dayna Mellanby in ' + E.possessiveOf(p.name) + ' captured cards: no Star One battle this Mission — scores 0.');
+        }
+      }
+    }
+
+    /* Totals */
     const stepTotals = {};
     for (const p of G.players){
       let sum = 0;
-      for (const c of p.pile){ if (!c._cancelled && !c._assassinated) sum += C.basePoints(c); }
+      for (const c of p.pile){
+        if (c._cancelled || c._assassinated) continue;
+        let pts = C.basePoints(c);
+        // Dayna: base is 0; add 10 if battle occurred
+        if (c.suit === 'C' && c.rank === '10'){
+          pts = c._daynaBonus ? 10 : 0;
+        }
+        sum += pts;
+      }
       stepTotals[p.idx] = sum;
     }
 
-    /* Step 5: Psycho-Strategist's Gambit — K♣ + A♠ in same pile flips sign */
+    /* Step 7 — Psycho-Strategist's Gambit: K♣ + A♠ in same pile flips sign */
     for (const p of G.players){
       if (C.pileHas(p.pile, 'C', 'K') && C.pileHas(p.pile, 'S', 'A')){
         stepTotals[p.idx] = -stepTotals[p.idx];

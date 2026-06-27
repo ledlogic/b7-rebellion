@@ -46,7 +46,12 @@
    *        trick, or `null` if the player is leading.
    * @returns {Card[]} A new array (shares card object refs).
    */
-  function legalPlays(hand, ledSuit){
+  function legalPlays(hand, ledSuit, currentTrick){
+    // Anna Grant compulsion: if 10♠ is already in the trick, holder of A♥ must play Avon
+    if (currentTrick && currentTrick.some(p => p.card.suit === 'S' && p.card.rank === '10')){
+      const avon = hand.find(c => c.suit === 'H' && c.rank === 'A');
+      if (avon) return [avon];
+    }
     if (!ledSuit) return hand.slice();
     const followers = hand.filter(c => c.suit === ledSuit);
     if (followers.length > 0) return followers.concat(hand.filter(isJoker));
@@ -64,9 +69,11 @@
    * @returns {number|'ANDROMEDAN'} Winner's player index, or `'ANDROMEDAN'`.
    */
   function resolveTrickWinner(trick, ledSuit){
+    // Vila (Joker) wins any trick he enters — first Joker in play order wins
+    const vilaPlay = trick.find(p => isJoker(p.card));
+    if (vilaPlay) return vilaPlay.playerIdx === 'ANDROMEDAN' ? 'ANDROMEDAN' : vilaPlay.playerIdx;
     let best = null;
     for (const play of trick){
-      if (isJoker(play.card)) continue;
       if (play.card.suit !== ledSuit) continue;
       if (!best || rankValue(play.card.rank) > rankValue(best.card.rank)) best = play;
     }

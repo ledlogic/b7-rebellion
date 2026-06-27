@@ -18,6 +18,8 @@
   --gold:#e8c468;
   --good:#5fd089;
   --bad:#ff6e62;
+  --andromedan:#00e676;         /* Andromedan invasion — alien green */
+  --andromedan-dim:#00c853;
 }
 *{box-sizing:border-box;}
 html,body{
@@ -206,8 +208,9 @@ header.topbar{
   box-shadow:0 1px 2px rgba(0,0,0,0.4);
 }
 .invasion-banner{
-  position:absolute;top:12px;left:14px;font-family:monospace;font-size:11px;color:var(--spade);
+  position:absolute;top:12px;left:14px;font-family:monospace;font-size:11px;color:var(--andromedan);
   display:flex;align-items:center;gap:6px;animation:pulse 1.4s infinite;
+  text-shadow:0 0 8px var(--andromedan);
 }
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
 .trick-slots{
@@ -383,6 +386,8 @@ header.topbar{
 .log-line .tag{font-weight:800;padding:1px 5px;border-radius:3px;margin-right:6px;font-size:10px;}
 .log-line.system{color:var(--dim);font-style:italic;}
 .log-line.system .marker{color:var(--amber);}
+.log-line.andromedan{color:var(--andromedan);font-style:italic;text-shadow:0 0 6px var(--andromedan-dim);}
+.log-line.andromedan .marker{color:var(--andromedan);}
 .comms-toggle{display:none;}
 
 @media (max-width:900px){

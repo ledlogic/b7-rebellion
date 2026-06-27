@@ -18,7 +18,7 @@
       case 'teleport':       await powerTeleport(winner); break;
       case 'destroyReserve': await powerDestroyReserve(winner); break;
       case 'zenLook':        await powerZenLook(winner); break;
-      case 'oracCancel':     await powerOracCancel(winner); break;
+      case 'oracPeek':       await powerOracPeek(winner); break;
       case 'pickLock':       await powerPickLock(winner); break;
       case 'seizeReserve':   await powerSeizeReserve(winner); break;
       case 'revealHand':     await powerRevealHand(winner); break;
@@ -27,13 +27,15 @@
   }
 
   async function powerTeleport(winner){
-    if (winner.hand.length === 0 || winner.pile.length === 0) return;
+    // Valid targets for teleport: Hearts, Spades, Dayna (10♣), or Vila (Joker) — living matter only
+    const pileTargets = winner.pile.filter(C.isPersonCard);
+    if (winner.hand.length === 0 || pileTargets.length === 0) return;
     if (winner.isHuman){
-      UI.setCenterMsg('Teleport Bracelet: choose a card to send from your hand, and one from your captured cards to take back.');
+      UI.setCenterMsg('Teleport Bracelet: swap a person card (Hearts, Spades, Dayna, Vila) from your captured cards back to hand.');
       const picks = await UI.askPairOfCards('Teleport Bracelet',
-        'Pick one card from your HAND to send into your captured cards, and one from your captured cards to take back into your hand. Both choices are made in this dialog.',
+        'Pick one card from your HAND to send into your captured cards, and one person card (Hearts, Spades, Dayna Mellanby, or Vila) from your captured cards to take back into your hand.',
         { label: 'From your HAND → pile', cards: winner.hand },
-        { label: 'From your PILE → hand', cards: winner.pile },
+        { label: 'From your PILE → hand (living matter only)', cards: pileTargets },
         { allowSkip: true, skipLabel: 'Skip Swap', confirmLabel: 'Swap' });
       if (picks.length === 0) return;
       const hc = picks[0], pc = picks[1];
@@ -41,7 +43,7 @@
       winner.pile = winner.pile.filter(c => c.id !== pc.id).concat([hc]);
       UI.logSystem('Teleport Bracelet: ' + E.subj(winner.name, 'swaps') + ' ' + C.cardLabel(hc) + ' (hand) with ' + C.cardLabel(pc) + ' (pile).');
     } else {
-      const worstInPile = winner.pile.slice().sort((a, b) => C.basePoints(a) - C.basePoints(b))[0];
+      const worstInPile = pileTargets.slice().sort((a, b) => C.basePoints(a) - C.basePoints(b))[0];
       const bestInHand  = winner.hand.slice().sort((a, b) => C.basePoints(b) - C.basePoints(a))[0];
       if (worstInPile && bestInHand && C.basePoints(bestInHand) > C.basePoints(worstInPile)){
         winner.hand = winner.hand.filter(c => c.id !== bestInHand.id).concat([worstInPile]);
@@ -95,14 +97,37 @@
     }
   }
 
+  /** Orac on-capture power: look through one opponent's hand (information only). */
+  async function powerOracPeek(winner){
+    const G = S.G;
+    const others = G.players.filter(p => p.idx !== winner.idx && p.hand.length > 0);
+    if (others.length === 0) return;
+    let target;
+    if (winner.isHuman){
+      const choice = await UI.askButtons('Orac — Scan Opponent Hand',
+        'Orac accesses any data system in the galaxy. Choose an opponent to peek at their hand.',
+        others.map(p => ({ label:p.name + ' (' + p.hand.length + ' cards)', value:p.idx })));
+      target = G.players[choice];
+      await UI.askInfo(target.name + "'s Hand", "Orac reveals their current hand to you (information only — you take nothing).", target.hand);
+      UI.logSystem('Orac: ' + E.subj(winner.name, 'scans') + ' ' + E.possessiveOf(target.name) + ' hand.');
+    } else {
+      target = others[Math.floor(Math.random() * others.length)];
+      UI.logSystem('Orac: ' + winner.name + ' quietly scans ' + E.possessiveOf(target.name) + ' hand.');
+      UI.say(winner, 'power');
+    }
+    UI.renderAll(); await E.sleep(250);
+  }
+
+  /** Orac scoring power: called from scoreMission (Step 1) if the holder wants to cancel a person card. */
   async function powerOracCancel(winner){
     if (winner.oracUsed) return;
-    const eligible = winner.pile.filter(c => (c.suit === 'S' || c.suit === 'C') && !c._cancelled);
+    // Valid targets: any Hearts card, any Spades card, Dayna Mellanby (10♣), or Vila (Joker)
+    const eligible = winner.pile.filter(c => C.isPersonCard(c) && !c._cancelled);
     if (eligible.length === 0) return;
     let pick;
     if (winner.isHuman){
-      const sel = await UI.askCards('Orac',
-        'Orac can cancel the point value of one Spade or Club already in your captured cards. Choose one, or skip.',
+      const sel = await UI.askCards('Orac — Cancel a Card Value',
+        'Orac wins an argument nobody in the galaxy can defeat. Cancel the point value of one person card (Hearts, Spades, Dayna, or Vila) from any player\'s captured cards. Choose one, or skip.',
         eligible, { allowSkip:true, skipLabel:'Skip' });
       pick = sel[0];
     } else {
@@ -111,7 +136,7 @@
     if (pick){
       pick._cancelled = true;
       winner.oracUsed = true;
-      UI.logSystem('Orac: ' + E.subj(winner.name, 'cancels') + ' the value of ' + C.cardLabel(pick) + ' (' + C.cardName(pick) + ') in their pile.');
+      UI.logSystem('Orac: ' + E.subj(winner.name, 'cancels') + ' the value of ' + C.cardLabel(pick) + ' (' + C.cardName(pick) + ') — scores 0 this Mission.');
       if (!winner.isHuman) UI.say(winner, 'power');
     }
     UI.renderAll(); await E.sleep(250);
@@ -168,6 +193,7 @@
     const taken = M.reserve.splice(0, M.reserve.length);
     winner.pile.push(...taken);
     M.invasionActive = false;
+    M.starOneBattleOccurred = true; // Travis seizing the Reserve counts for Dayna
     UI.logSystem('⚡ TRAVIS: ' + E.subj(winner.name, 'seizes') + ' the entire remaining Reserve (' + taken.length + ' cards): ' + taken.map(C.cardLabel).join(' ') + '.');
     if (!winner.isHuman) UI.say(winner, 'reserve');
     else await UI.askInfo('Travis — Reserve Seized', 'You captured Travis. The entire remaining Reserve is seized into your captured cards.', taken);
@@ -197,7 +223,7 @@
 
   R.powers = {
     resolveCardPower,
-    powerTeleport, powerDestroyReserve, powerZenLook, powerOracCancel,
+    powerTeleport, powerDestroyReserve, powerZenLook, powerOracPeek, powerOracCancel,
     powerPickLock, powerSeizeReserve, powerRevealHand
   };
 })();

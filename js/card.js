@@ -86,7 +86,7 @@
    * @type {Object<number, DealConfig>}
    */
   const DEAL_TABLE = {
-    2:{reserve:5, hand:24},
+    2:{reserve:3, hand:25},
     3:{reserve:5, hand:16},
     4:{reserve:5, hand:12},
     5:{reserve:3, hand:10},
@@ -194,12 +194,12 @@
       if (r==='10') return { name:'IMIPAK', base:1, scorePower:'imipak' };
       if (r==='J')  return { name:'Teleport Bracelet', base:5, power:'teleport' };
       if (r==='Q')  return { name:'Liberator', base:5, power:'destroyReserve' };
-      if (r==='K')  return { name:'Zen', base:5, power:'zenLook' };
-      if (r==='A')  return { name:'Orac', base:5, power:'oracCancel' };
+      if (r==='K')  return { name:'Zen', base:5 };
+      if (r==='A')  return { name:'Orac', base:5, power:'oracPeek', scorePower:'oracCancel' };
     }
     if (c.suit === 'C'){
       if (numeric && r!=='10') return { name:'Hazard', base: -parseInt(r,10) };
-      if (r==='10') return { name:'Dayna Mellanby', base:10 };
+      if (r==='10') return { name:'Dayna Mellanby', base:0, scorePower:'dayna' };
       if (r==='J')  return { name:'System Failure', base:-5 };
       if (r==='Q')  return { name:'Asteroid Field', base:-5 };
       if (r==='K')  return { name:'Carnell', base:-5 };
@@ -264,12 +264,26 @@
     return pile.some(c => c.suit === suit && c.rank === rank);
   }
 
+  /**
+   * Is this card a valid target for IMIPAK, Orac, or Teleport Bracelet?
+   * Targets: any Hearts card, any Spades card, Dayna Mellanby (10♣), or Vila (Joker).
+   * @param {Card} c
+   * @returns {boolean}
+   */
+  function isPersonCard(c){
+    if (isJoker(c)) return true;                           // Vila
+    if (c.suit === 'H') return true;                       // any Heart
+    if (c.suit === 'S') return true;                       // any Spade
+    if (c.suit === 'C' && c.rank === '10') return true;   // Dayna Mellanby
+    return false;
+  }
+
   const api = {
     RANKS, SUITS, SUIT_SYMBOL, SUIT_FACTION, DEAL_TABLE,
     rankValue, isJoker, buildDeck, shuffle, dealMission,
     cardMeta, cardLabel, cardName, basePoints,
     isPrime, isNumbered, isHeart, isHeartFace, isHeartAce,
-    pileHas
+    pileHas, isPersonCard
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

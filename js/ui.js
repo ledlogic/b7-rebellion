@@ -42,6 +42,17 @@
     feed.appendChild(div);
     feed.scrollTop = feed.scrollHeight;
   }
+
+  /** Log an Andromedan invasion event in green. */
+  function logAndromedan(text){
+    const feed = document.getElementById('comms-feed');
+    if (!feed) return;
+    const div = document.createElement('div');
+    div.className = 'log-line andromedan';
+    div.innerHTML = '<span class="marker">▸</span> ' + text;
+    feed.appendChild(div);
+    feed.scrollTop = feed.scrollHeight;
+  }
   function logChat(player, text){
     const feed = document.getElementById('comms-feed');
     if (!feed) return;
@@ -487,8 +498,10 @@
       const who = document.createElement('div'); who.className = 'who player-chip';
       if (play.who === 'ANDROMEDAN'){
         who.textContent = 'ANDROMEDAN';
-        who.style.background = 'var(--spade)';
+        who.style.background = 'var(--andromedan)';
         who.style.color = '#000';
+        who.style.textShadow = 'none';
+        who.style.boxShadow = '0 0 8px var(--andromedan)';
       } else {
         const player = G.players[play.playerIdx];
         who.textContent = player.name;
@@ -512,7 +525,7 @@
      Pass a player object, or the string 'ANDROMEDAN' for the invader. */
   function playerChip(playerOrSpecial){
     if (playerOrSpecial === 'ANDROMEDAN'){
-      return '<span class="player-chip" style="background:var(--spade);color:#000;">ANDROMEDAN</span>';
+      return '<span class="player-chip" style="background:var(--andromedan);color:#000;box-shadow:0 0 8px var(--andromedan);">ANDROMEDAN</span>';
     }
     const p = playerOrSpecial;
     return '<span class="player-chip" style="background:' + escapeAttr(p.color) + ';color:#000;">' +
@@ -879,7 +892,7 @@
     renderAll, renderHeader, renderSeats, renderHumanHand, renderCenter,
     renderCardEl, renderCardBackEl,
     askButtons, askCards, askPairOfCards, askInfo, closeModal, showInfoBanner,
-    logSystem, logChat, say, showBubble, escapeHtml,
+    logSystem, logAndromedan, logChat, say, showBubble, escapeHtml,
     getHumanCard, setCenterMsg, setCenterMsgHTML, playerChip,
     showScoreboardModal, showScoringModal, showFinalResults, showHumanPileModal,
     cardSort, attachUiHandlers, animateTrickCapture, formatTime, awaitContinue,

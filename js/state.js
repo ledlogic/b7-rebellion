@@ -43,15 +43,17 @@
         currentTurn: null,
         leadIdx: (dealerIdx + 1) % G.numPlayers,
         ledSuit: null,
+        vilaLedSuit: null,       // declared suit when Vila leads a trick
         currentTrick: [],
         trickNumber: 0,
-        playedCards: [],    // every card revealed in play this mission
-        knownVoids: {},     // playerIdx -> Set of suit chars they're known void in
+        playedCards: [],
+        knownVoids: {},
         missionOver: false,
-        missionResult: null,  // 'normal' | 'starOne' | 'andromedan'
+        missionResult: null,     // 'normal' | 'starOne' | 'andromedan' | 'vilaBluff'
+        starOneBattleOccurred: false, // true if A♣ captured, Full Crew fired, Travis seized, or Invasion began
         awaitingHumanCard: false,
         _humanResolve: null,
-        startedAt: Date.now()   // drives the MISSION header timer
+        startedAt: Date.now()
       };
     },
 
