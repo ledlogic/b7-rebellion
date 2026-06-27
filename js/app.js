@@ -44,6 +44,7 @@
   }
 
   document.getElementById('btn-start').addEventListener('click', startGameSetup);
+  document.getElementById('btn-history').addEventListener('click', UI.showHistoryModal);
   UI.attachUiHandlers();
 
   async function startGameSetup(){
@@ -65,7 +66,8 @@
       totals: new Array(n).fill(0),
       missionLog: [],
       startDealer: 0,
-      difficulty: chosenDifficulty
+      difficulty: chosenDifficulty,
+      gameStartedAt: null   // stamped on first runMission, drives the GAME header timer
     };
 
     /* ---- Dealer draw (lowest-card-deals-first) ---- */
@@ -79,7 +81,7 @@
     let attempt = 0, dealerIdx = -1;
     while (dealerIdx === -1 && attempt < 4){
       attempt++;
-      const deck = E.shuffle(C.buildDeck());
+      const deck = C.shuffle(C.buildDeck());
       const draws = players.map((p, i) => ({
         p, card: deck[i],
         val: C.isJoker(deck[i]) ? 10 : C.basePoints(deck[i])

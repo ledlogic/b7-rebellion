@@ -29,9 +29,9 @@
   async function powerTeleport(winner){
     if (winner.hand.length === 0 || winner.pile.length === 0) return;
     if (winner.isHuman){
-      UI.setCenterMsg('Teleport Bracelet: choose a card to send from your hand, and one from your pile to take back.');
+      UI.setCenterMsg('Teleport Bracelet: choose a card to send from your hand, and one from your captured cards to take back.');
       const picks = await UI.askPairOfCards('Teleport Bracelet',
-        'Pick one card from your HAND to send into your capture pile, and one from your CAPTURE PILE to take back into your hand. Both choices are made in this dialog.',
+        'Pick one card from your HAND to send into your captured cards, and one from your captured cards to take back into your hand. Both choices are made in this dialog.',
         { label: 'From your HAND → pile', cards: winner.hand },
         { label: 'From your PILE → hand', cards: winner.pile },
         { allowSkip: true, skipLabel: 'Skip Swap', confirmLabel: 'Swap' });
@@ -102,7 +102,7 @@
     let pick;
     if (winner.isHuman){
       const sel = await UI.askCards('Orac',
-        'Orac can cancel the point value of one Spade or Club already in your capture pile. Choose one, or skip.',
+        'Orac can cancel the point value of one Spade or Club already in your captured cards. Choose one, or skip.',
         eligible, { allowSkip:true, skipLabel:'Skip' });
       pick = sel[0];
     } else {
@@ -170,7 +170,7 @@
     M.invasionActive = false;
     UI.logSystem('⚡ TRAVIS: ' + E.subj(winner.name, 'seizes') + ' the entire remaining Reserve (' + taken.length + ' cards): ' + taken.map(C.cardLabel).join(' ') + '.');
     if (!winner.isHuman) UI.say(winner, 'reserve');
-    else await UI.askInfo('Travis — Reserve Seized', 'You captured Travis. The entire remaining Reserve is seized into your pile.', taken);
+    else await UI.askInfo('Travis — Reserve Seized', 'You captured Travis. The entire remaining Reserve is seized into your captured cards.', taken);
     UI.renderAll(); await E.sleep(300);
   }
 

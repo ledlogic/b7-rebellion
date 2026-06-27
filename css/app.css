@@ -31,7 +31,33 @@ body{
   background-image:
     radial-gradient(ellipse at 20% -10%, rgba(63,193,181,0.07), transparent 50%),
     radial-gradient(ellipse at 90% 10%, rgba(229,86,79,0.06), transparent 45%);
+  /* Suppress stray text selection during play (cards, buttons, chips, labels).
+     Selectable zones (comms log, modal text, center message, flavor) opt back
+     in below. */
+  user-select:none;
+  -webkit-user-select:none;
+  -moz-user-select:none;
 }
+.comms-feed, .comms-feed *,
+.modal-box, .modal-box *,
+#center-msg,
+.dealer-flavor,
+.log-line, .log-line *{
+  user-select:text;
+  -webkit-user-select:text;
+  -moz-user-select:text;
+}
+
+/* Header timers — game total + current mission, mono so digits don't reflow. */
+.timers{
+  font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;
+  font-size:12px;
+  color:var(--muted);
+  letter-spacing:0.02em;
+}
+.timers .t-label{color:var(--dim);margin-right:4px;font-weight:600;}
+.timers b{color:var(--text);font-weight:600;}
+.timers .sep{color:var(--dim);margin:0 6px;}
 .mono{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;}
 h1,h2,h3{margin:0;font-weight:700;letter-spacing:0.02em;}
 button{
@@ -373,3 +399,50 @@ header.topbar{
 .note-list li{margin-bottom:4px;}
 
 .crown{font-size:48px;text-align:center;margin-bottom:6px;}
+
+/* ---------- Score history modal ---------- */
+.history-list{
+  display:flex;flex-direction:column;gap:10px;
+  margin-top:14px;
+  max-height:50vh;overflow-y:auto;
+  padding-right:4px;
+}
+.history-row{
+  background:rgba(255,255,255,0.02);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:10px 12px;
+}
+.history-row .h-head{
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-size:12px;color:var(--muted);
+  margin-bottom:6px;
+  padding-bottom:6px;
+  border-bottom:1px dashed var(--border);
+}
+.history-row .h-when{color:var(--text);font-weight:600;}
+.history-row .h-meta{font-family:ui-monospace,Consolas,monospace;font-size:11px;}
+.history-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.history-table td{padding:4px 6px;}
+.history-table .h-rank{width:24px;color:var(--dim);font-family:monospace;font-size:11px;text-align:right;}
+.history-table .h-name{color:var(--text);}
+.history-table .h-total{text-align:right;font-family:monospace;font-weight:600;width:60px;}
+.history-table .h-total.pos{color:var(--good);}
+.history-table .h-total.neg{color:var(--bad);}
+.history-table .is-winner{background:rgba(63,193,181,0.06);}
+.history-table .is-human .h-name{font-style:italic;}
+.h-chip{
+  display:inline-block;
+  color:#000;font-weight:700;font-size:10px;
+  padding:1px 5px;border-radius:3px;
+  font-family:ui-monospace,Consolas,monospace;
+  margin-right:4px;
+  letter-spacing:0.04em;
+}
+.h-tag{
+  display:inline-block;
+  font-size:10px;color:var(--teal);
+  border:1px solid var(--teal);border-radius:3px;
+  padding:0 4px;margin-left:6px;letter-spacing:0.04em;
+}
+.h-tag-you{color:var(--amber);border-color:var(--amber);}

@@ -24,6 +24,10 @@
         const dealerIdx = (G.startDealer + m) % G.numPlayers;
         await runMission(dealerIdx);
       }
+      /* Persist the completed game to localStorage BEFORE showing final
+         results, so even if the user closes the tab from the modal the row
+         is already saved. */
+      UI.saveGameToHistory(buildHistoryEntry());
       await UI.showFinalResults(runMission);
     } catch (err){
       window.__LAST_ERROR = (err && err.stack) ? err.stack : String(err);
@@ -31,8 +35,44 @@
     }
   }
 
+  /**
+   * Build a serializable snapshot of the just-finished game for the
+   * localStorage history. Excludes hand/pile card lists (too noisy and
+   * unbounded across many games) but preserves final totals, personas,
+   * mission count, and timing.
+   *
+   * @returns {Object}
+   */
+  function buildHistoryEntry(){
+    const G = S.G;
+    const totals = G.totals.slice();
+    let winIdx = 0;
+    for (let i = 1; i < totals.length; i++) if (totals[i] > totals[winIdx]) winIdx = i;
+    return {
+      endedAt:    new Date().toISOString(),
+      durationMs: G.gameStartedAt ? (Date.now() - G.gameStartedAt) : null,
+      numPlayers: G.numPlayers,
+      difficulty: G.difficulty,
+      missions:   G.numPlayers,   // game length = numPlayers missions
+      players: G.players.map(p => ({
+        idx: p.idx,
+        name: p.name,
+        isHuman: p.isHuman,
+        color: p.color,
+        personaTag:  p.persona ? p.persona.tag  : null,
+        personaName: p.persona ? p.persona.name : null,
+        total: G.totals[p.idx]
+      })),
+      winner: { idx: winIdx, name: G.players[winIdx].name, total: totals[winIdx] }
+    };
+  }
+
   async function runMission(dealerIdx){
     S.initMissionState(dealerIdx);
+    /* Stamp the GAME timer once, on the first mission. The MISSION timer is
+       reset every time initMissionState builds a new M. */
+    if (S.G.gameStartedAt == null) S.G.gameStartedAt = Date.now();
+    UI.startTimers();
     UI.renderAll();
     const G = S.G, M = S.M;
     UI.setCenterMsgHTML('Cards dealt. Reserve of ' + M.reserve.length + ' set aside. ' +
@@ -40,6 +80,7 @@
     UI.logSystem('— MISSION ' + (G.missionIndex+1) + ' BEGINS — Dealer: ' + G.players[dealerIdx].name + ' · Reserve: ' + M.reserve.length + ' cards —');
     for (const p of G.players){ if (!p.isHuman) UI.say(p, 'start'); await E.sleep(120); }
     await E.sleep(700);
+    UI.logLayoutMetrics('mission-' + (G.missionIndex+1) + '-start');
 
     while (!S.M.missionOver){
       if (S.M.invasionActive) await playInvasionWave();
@@ -67,6 +108,7 @@
     M.ledSuit = null;
     UI.setCenterMsg('');   // wipe the previous trick's "X wins the trick" announcement
     UI.renderAll();
+    UI.logLayoutMetrics('trick-' + M.trickNumber + '-start');
     const order = [];
     for (let i = 0; i < G.numPlayers; i++) order.push((M.leadIdx + i) % G.numPlayers);
 
@@ -147,6 +189,7 @@
 
     UI.renderAll();
     await E.sleep(400);
+    UI.logLayoutMetrics('trick-' + M.trickNumber + '-captured');
 
     /* capture-triggered powers, in trick play order */
     for (const play of trick){
@@ -266,7 +309,7 @@
     let taken = [];
     if (winner.isHuman){
       const sel = await UI.askCards('Full Crew — Reserve Revealed',
-        'Take any, all, or none of the revealed Reserve cards into your pile. Whatever you leave behind is locked away for good.',
+        'Take any, all, or none of the revealed Reserve cards into your captured cards. Whatever you leave behind is locked away for good.',
         revealed, { multi:true, allowSkip:true, skipLabel:'Take Nothing', confirmLabel:'Take Selected' });
       taken = sel;
     } else {
@@ -301,14 +344,23 @@
       notes.push('Gauda Prime triggered by ' + gaudaBy.join(', ') + ' — ALL Hearts in ALL piles are worth 0.');
     }
 
-    /* Step 2: Mutoid — mandatory Heart devour from own pile */
+    /* Step 2: Mutoid — mandatory Heart devour from own pile.
+       Prefer a Heart already cancelled (e.g. by Orac, Gauda Prime) — the
+       Mutoid's effect is wasted on a dead body and the player keeps every
+       live Heart. Otherwise the Mutoid drains the LOWEST-value live Heart
+       for blood serum (the least the player can afford to lose). */
     for (const p of G.players){
       if (C.pileHas(p.pile, 'S', 'J')){
         const hearts = p.pile.filter(C.isHeart);
         if (hearts.length > 0){
-          const target = hearts.find(c => c._cancelled) || hearts.sort((a, b) => C.basePoints(b) - C.basePoints(a))[0];
-          target._cancelled = true;
-          notes.push('Mutoid in ' + E.possessiveOf(p.name) + ' pile devours ' + C.cardLabel(target) + ' — worth 0.');
+          const alreadyDead = hearts.find(c => c._cancelled);
+          if (alreadyDead){
+            notes.push('Mutoid in ' + E.possessiveOf(p.name) + ' captured cards feeds on the already-cancelled ' + C.cardLabel(alreadyDead) + ' — no further effect.');
+          } else {
+            const target = hearts.slice().sort((a, b) => C.basePoints(a) - C.basePoints(b))[0];
+            target._cancelled = true;
+            notes.push('Mutoid in ' + E.possessiveOf(p.name) + ' captured cards drains ' + C.cardLabel(target) + ' (the lowest-value Heart) for blood serum — now worth 0.');
+          }
         }
       }
     }
@@ -324,7 +376,7 @@
         if (pool.length > 0){
           const pick = pool.sort((a, b) => C.basePoints(b.card) - C.basePoints(a.card))[0];
           pick.card._assassinated = true;
-          notes.push('IMIPAK: ' + E.subj(p.name, 'assassinates') + ' ' + C.cardLabel(pick.card) + ' in ' + E.possessiveOf(pick.owner.name) + ' pile — worth 0.');
+          notes.push('IMIPAK: ' + E.subj(p.name, 'assassinates') + ' ' + C.cardLabel(pick.card) + ' in ' + E.possessiveOf(pick.owner.name) + ' captured cards — worth 0.');
         }
       }
     }

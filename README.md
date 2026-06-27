@@ -20,6 +20,9 @@ Both shipped tiers verified to play correctly in 2/3/4/5/7-player smoke tests, w
 
 | Version | Changes |
 |---|---|
+| **2.21** | Mutoid Heart-devour fixed and re-themed. Previously the live-Heart fallback sorted `(b - a)` and picked the **highest**-value Heart; now sorts `(a - b)` and picks the **lowest**-value Heart for blood serum (less damage to the player). Two distinct scoring notes: one for when the Mutoid feeds on an already-cancelled Heart (no further effect), one for the live-Heart drain (names the lowest-value Heart as the source of blood serum). |
+| **2.20** | `DEAL_TABLE`, `dealMission`, and `shuffle` relocated from `engine.js` to `card.js` — all deck/deal concerns are now in one module. `engine.js` is just trick rules (`legalPlays`, `resolveTrickWinner`), `sleep`, and grammar helpers. Score history persists to `localStorage` (key `rebellion.scoreHistory.v1`, 100-row FIFO cap): completed games are saved with date, player count, AI level, duration, full leaderboard, and winner. New "View Score History" buttons on the setup screen and final-results modal open a scrollable list. Clear-history button gated behind confirm dialog. JSDoc tooling added: `card.js` and `engine.js` annotated with full `@typedef` / `@param` / `@returns` types; `jsdoc.json` config drives `npm run docs` (or `npx jsdoc -c jsdoc.json`) to generate browsable HTML in `docs/`. |
+| **2.19** | Header gains GAME (running total since first mission) and MISSION (resets each new mission) timers. "PILE" label retitled "CAPTURED" everywhere user-facing (seat stats, human stats, scoreboard column, modal heading, in-play prose). Layout-drift diagnostics: `UI.logLayoutMetrics(label)` (also `window.__LAYOUT(label)`) emits a `console.debug` blob with top/height/bottom of every play-area anchor; fires at mission start, every trick start, and every trick-captured beat. `user-select: none` on body to stop accidental text/button selection during play, with opt-ins for comms feed, modal text, and center message. |
 | **2.18** | Card data model split out of `engine.js` into new `card.js` (RANKS, SUITS, `buildDeck`, `cardMeta`, `cardLabel`, `cardName`, `basePoints`, `isJoker`, `isPrime`, `isNumbered`, `isHeart` family, `pileHas`). `engine.js` retains game flow (`dealMission`, `resolveTrickWinner`, `legalPlays`), utilities (`shuffle`, `sleep`), and grammar helpers (`verbFor`, `subj`, `possessiveOf`). AI context now exposes both `ctx.engine` and `ctx.card`. |
 | **2.17** | Trick-win message ("X wins the trick") is cleared at the start of each new trick / invasion wave instead of lingering until something else overwrites it. |
 | **2.16** | Dealer-draw cards return to a horizontal row, sorted ascending so the leftmost (lowest) is the dealer. Winning cell no longer elevates — sort order is the cue. |
@@ -50,7 +53,8 @@ rebellion-v3/
 ├── README.md               this file
 └── js/
     ├── card.js             card data model (suits, ranks, names, points, powers, predicates)
-    ├── engine.js           game-flow rules (deal, legal plays, trick winner) + utilities + grammar helpers
+    ├── card.js             card data model + deck-level ops (build, shuffle, deal)
+    ├── engine.js           trick rules (legal plays, trick winner) + grammar + sleep
     ├── state.js            G (game) and M (mission) state holders
     ├── personas/
     │   ├── registry.js     register / pickLine / pickN
@@ -59,10 +63,27 @@ rebellion-v3/
     │   ├── registry.js     register / get / list / buildContext / chooseCard
     │   ├── delta.js        Δ Conscript (one-card heuristic)
     │   └── gamma.js        Γ Officer (counting + voids, with tunable WEIGHTS)
-    ├── ui.js               rendering, modals, comms log, animations
+    ├── ui.js               rendering, modals, comms log, animations, timers, history
     ├── powers.js           capture powers (Vila, Zen, Travis, etc.)
     ├── flow.js             mission/trick/wave orchestration + scoring
     └── app.js              setup screen + game bootstrap
 ```
 
 Drop `js/ai/beta.js` with `Rebellion.ai.register('beta', {…})` and a new `<script>` tag — it appears in the difficulty picker automatically. Same plug-in pattern for custom persona files.
+
+## API documentation
+
+`card.js` and `engine.js` carry full JSDoc annotations (`@typedef`, `@param`, `@returns`). Generate browsable HTML docs into `docs/`:
+
+```
+npm install         # one-time, pulls jsdoc
+npm run docs        # writes docs/index.html
+```
+
+Or without installing globally:
+
+```
+npx jsdoc -c jsdoc.json
+```
+
+`jsdoc.json` points at the whole `js/` tree, so further modules become annotatable incrementally — add `@typedef` / `@param` blocks to any file and the next docs run picks them up.

@@ -15,7 +15,7 @@
       <div class="glyph">FEDERATION ENCRYPTED CHANNEL // PRIVATE GAME</div>
       <h1>REBELLION</h1>
       <p>A Trick-Taking Game of Crew, Tech, Hazards &amp; the Federation</p>
-      <div class="version">VERSION 2.18 // MODULAR BUILD</div>
+      <div class="version">VERSION 2.21 // MODULAR BUILD</div>
     </div>
 
     <div class="setup-section">
@@ -50,6 +50,7 @@
     </div>
 
     <div class="setup-foot">
+      <button id="btn-history">View Score History</button>
       <button class="primary" id="btn-start" disabled>Determine Dealer</button>
     </div>
   </div>
@@ -67,6 +68,7 @@
       <span>TRICK: <b id="hdr-trick">0</b></span>
       <span>RESERVE: <b id="hdr-reserve">0</b></span>
       <span>AI: <b id="hdr-ai">—</b></span>
+      <span class="timers"><span class="t-label">GAME</span> <b id="t-game">--:--</b><span class="sep">·</span><span class="t-label">MISSION</span> <b id="t-mission">--:--</b></span>
     </div>
     <div class="actions">
       <button id="btn-scores">Scoreboard</button>
@@ -89,7 +91,7 @@
       <div class="human-area">
         <div class="human-head">
           <span class="name" id="human-name">YOU — Avon's Crew</span>
-          <span class="stats" id="human-stats">HAND: 0 · PILE: 0 · TOTAL: 0</span>
+          <span class="stats" id="human-stats">HAND: 0 · CAPTURED: 0 · TOTAL: 0</span>
         </div>
         <div class="hand-row" id="human-hand"></div>
       </div>

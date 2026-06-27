@@ -1,37 +1,51 @@
-/* Rebellion — engine.js
- * Game-flow rules: dealing, legal plays, trick resolution, plus utilities
- * (shuffle, sleep) and grammar helpers. The card data model lives in card.js;
- * engine.js depends on it. No DOM, no global state. Safe in Node too.
+/**
+ * @file Game-flow rules for Rebellion: legal-play computation, trick
+ * resolution, grammar helpers for "You"-vs-persona-name messages, and the
+ * `sleep` timing utility used by the async game loop. Depends on
+ * `Rebellion.card` (loaded first). No DOM, no live state.
+ *
+ * @module Rebellion.engine
  */
 (function (global) {
   'use strict';
 
-  // Dependency on card.js — browser path uses the already-loaded global,
-  // Node path uses require. card.js must be loaded first in the browser.
+  // Card module dependency — browser path uses the already-loaded global,
+  // Node path falls back to require. card.js must be loaded first in the
+  // browser.
   const card = (global.Rebellion && global.Rebellion.card)
     || ((typeof require !== 'undefined') ? require('./card') : null);
   if (!card) throw new Error('Rebellion engine.js requires card.js to be loaded first');
-  const { isJoker, rankValue, buildDeck } = card;
+  const { isJoker, rankValue } = card;
 
-  const DEAL_TABLE = {
-    2:{reserve:5, hand:24},
-    3:{reserve:5, hand:16},
-    4:{reserve:5, hand:12},
-    5:{reserve:3, hand:10},
-    6:{reserve:5, hand:8},
-    7:{reserve:4, hand:7}
-  };
+  /**
+   * One play in a trick — a card put down by either a seated player (by index)
+   * or by the Andromedan invasion (by the literal string `'ANDROMEDAN'`).
+   *
+   * @typedef {Object} Play
+   * @property {number|'ANDROMEDAN'} playerIdx
+   * @property {Card} card
+   */
 
-  function shuffle(arr){
-    const a = arr.slice();
-    for (let i = a.length-1; i > 0; i--){
-      const j = Math.floor(Math.random()*(i+1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
+  /**
+   * Promise-based sleep helper. The game loop awaits this between beats so
+   * the user can read what just happened.
+   *
+   * @param {number} ms Milliseconds to wait.
+   * @returns {Promise<void>}
+   */
   function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
 
+  /**
+   * Compute which cards in `hand` may legally be played given the led suit.
+   * Standard follow-suit rule plus the Joker exception: the Joker can be
+   * played at any time, but if the player can follow suit they must (the
+   * Joker rides along with the followers in the returned list).
+   *
+   * @param {Card[]} hand
+   * @param {Suit|null} ledSuit  The suit led in the current
+   *        trick, or `null` if the player is leading.
+   * @returns {Card[]} A new array (shares card object refs).
+   */
   function legalPlays(hand, ledSuit){
     if (!ledSuit) return hand.slice();
     const followers = hand.filter(c => c.suit === ledSuit);
@@ -39,20 +53,16 @@
     return hand.slice();
   }
 
-  function dealMission(numPlayers, dealerIdx){
-    const cfg = DEAL_TABLE[numPlayers];
-    const deck = shuffle(buildDeck());
-    const reserve = deck.slice(0, cfg.reserve);
-    const rest = deck.slice(cfg.reserve);
-    const hands = Array.from({length: numPlayers}, () => []);
-    let pos = (dealerIdx + 1) % numPlayers;
-    for (let i = 0; i < rest.length; i++){
-      hands[pos].push(rest[i]);
-      pos = (pos + 1) % numPlayers;
-    }
-    return { reserve, hands };
-  }
-
+  /**
+   * Resolve the winner of a completed trick. Highest card of the led suit
+   * wins; off-suit cards and the Joker can never win a trick. The Andromedan
+   * (during invasion waves) can win and is returned as the literal string
+   * `'ANDROMEDAN'`.
+   *
+   * @param {Play[]} trick    The trick in play order.
+   * @param {Suit} ledSuit
+   * @returns {number|'ANDROMEDAN'} Winner's player index, or `'ANDROMEDAN'`.
+   */
   function resolveTrickWinner(trick, ledSuit){
     let best = null;
     for (const play of trick){
@@ -69,6 +79,25 @@
      `name + ' verb'` produces ungrammatical output ("You wins") when the
      human is the subject. These helpers map the third-person form back to
      the bare form when (and only when) the subject is "You". */
+
+  /**
+   * Conjugate a third-person-singular verb to match the subject. If `name`
+   * is anything other than the literal `'You'`, the third-person form is
+   * returned unchanged. If `name === 'You'`, the verb is bare-formed,
+   * handling regular `-s`/`-es`/`-ies` endings and the common irregulars
+   * (`has → have`, `is → are`, `does → do`, `was → were`).
+   *
+   * @param {string} name                    The grammatical subject.
+   * @param {string} thirdPersonSingular     The verb in third-person-singular
+   *                                         form, e.g. `'wins'`, `'has'`.
+   * @returns {string}
+   *
+   * @example
+   *   verbFor('Avon',  'wins')  // → 'wins'
+   *   verbFor('You',   'wins')  // → 'win'
+   *   verbFor('You',   'has')   // → 'have'
+   *   verbFor('You',   'tries') // → 'try'
+   */
   function verbFor(name, thirdPersonSingular){
     if (name !== 'You') return thirdPersonSingular;
     const irregular = { has:'have', is:'are', does:'do', was:'were' };
@@ -79,12 +108,28 @@
     if (v.endsWith('s')) return v.slice(0, -1);                                    // wins → win, seizes → seize
     return v;
   }
+
+  /**
+   * Build a grammatical "subject verb" phrase, e.g. `subj('Avon', 'wins')` →
+   * `'Avon wins'`, `subj('You', 'wins')` → `'You win'`.
+   *
+   * @param {string} name
+   * @param {string} thirdPersonSingular
+   * @returns {string}
+   */
   function subj(name, thirdPersonSingular){ return name + ' ' + verbFor(name, thirdPersonSingular); }
+
+  /**
+   * Build a possessive for either a persona name or `'You'`.
+   *
+   * @param {string} name
+   * @returns {string} `'your'` if `name === 'You'`, else `name + "'s"`.
+   */
   function possessiveOf(name){ return name === 'You' ? 'your' : (name + "'s"); }
 
   const api = {
-    DEAL_TABLE, shuffle, sleep,
-    legalPlays, dealMission, resolveTrickWinner,
+    sleep,
+    legalPlays, resolveTrickWinner,
     verbFor, subj, possessiveOf
   };
 

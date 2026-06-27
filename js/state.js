@@ -27,7 +27,7 @@
 
     initMissionState(dealerIdx){
       const G = state.G;
-      const { reserve, hands } = E.dealMission(G.numPlayers, dealerIdx);
+      const { reserve, hands } = C.dealMission(G.numPlayers, dealerIdx);
       for (let i = 0; i < G.numPlayers; i++){
         G.players[i].hand    = hands[i];
         G.players[i].pile    = [];
@@ -50,7 +50,8 @@
         missionOver: false,
         missionResult: null,  // 'normal' | 'starOne' | 'andromedan'
         awaitingHumanCard: false,
-        _humanResolve: null
+        _humanResolve: null,
+        startedAt: Date.now()   // drives the MISSION header timer
       };
     },
 

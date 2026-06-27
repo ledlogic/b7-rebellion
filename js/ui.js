@@ -397,7 +397,7 @@
       head.appendChild(nameWrap);
       seat.appendChild(head);
       const stats = document.createElement('div'); stats.className = 'stats';
-      stats.innerHTML = '<span>HAND <b>' + p.hand.length + '</b></span><span>PILE <b>' + p.pile.length + '</b></span><span>TOTAL <b>' + G.totals[p.idx] + '</b></span>';
+      stats.innerHTML = '<span>HAND <b>' + p.hand.length + '</b></span><span>CAPTURED <b>' + p.pile.length + '</b></span><span>TOTAL <b>' + G.totals[p.idx] + '</b></span>';
       seat.appendChild(stats);
       if (p.exposed){
         const exposedRow = document.createElement('div'); exposedRow.className = 'hand-row'; exposedRow.style.marginTop = '8px';
@@ -417,12 +417,12 @@
     const human = G.players[0];
     const statsEl = document.getElementById('human-stats');
     statsEl.innerHTML = '';
-    statsEl.appendChild(document.createTextNode('HAND: ' + human.hand.length + ' · PILE: '));
+    statsEl.appendChild(document.createTextNode('HAND: ' + human.hand.length + ' · CAPTURED: '));
     if (human.pile.length > 0){
       const link = document.createElement('span');
       link.className = 'pile-link';
       link.textContent = human.pile.length;
-      link.title = 'Click to review your capture pile';
+      link.title = 'Click to review your captured cards';
       link.addEventListener('click', showHumanPileModal);
       statsEl.appendChild(link);
     } else {
@@ -529,7 +529,7 @@
     const livePts = human.pile.reduce((s, c) => s + ((c._cancelled || c._assassinated) ? 0 : C.basePoints(c)), 0);
 
     modalBox.innerHTML = '';
-    const h = document.createElement('h3'); h.textContent = 'Your Capture Pile'; modalBox.appendChild(h);
+    const h = document.createElement('h3'); h.textContent = 'Your Captured Cards'; modalBox.appendChild(h);
     const sub = document.createElement('div'); sub.className = 'sub';
     const cancelledCount = human.pile.filter(c => c._cancelled || c._assassinated).length;
     sub.textContent = human.pile.length + ' card' + (human.pile.length === 1 ? '' : 's') +
@@ -595,7 +595,7 @@
       modalBox.appendChild(ul);
     }
     const table = document.createElement('table'); table.className = 'score-table';
-    let rows = '<tr><th>Player</th><th>Pile</th><th>This Mission</th><th>Total</th></tr>';
+    let rows = '<tr><th>Player</th><th>Captured</th><th>This Mission</th><th>Total</th></tr>';
     for (const p of G.players.slice().sort((a, b) => breakdown.missionTotals[b.idx] - breakdown.missionTotals[a.idx])){
       rows += '<tr><td>' + p.name + '</td><td>' + p.pile.length + ' cards</td><td class="num ' +
               (breakdown.missionTotals[p.idx] >= 0 ? 'pos' : 'neg') + '">' + breakdown.missionTotals[p.idx] +
@@ -645,6 +645,9 @@
         attempts++;
         continue;
       } else {
+        const hb = document.createElement('button'); hb.textContent = 'View Score History';
+        hb.addEventListener('click', showHistoryModal);
+        foot.appendChild(hb);
         const rb = document.createElement('button'); rb.className = 'primary'; rb.textContent = 'New Game';
         rb.addEventListener('click', () => { location.reload(); });
         foot.appendChild(rb);
@@ -663,6 +666,192 @@
     if (sb) sb.addEventListener('click', showScoreboardModal);
   }
 
+  /* ============================================================ Score history (localStorage) ============================================================
+     Persists every completed game as a row in localStorage under a single
+     key. Capped at 100 entries (FIFO). All access wrapped in try/catch so a
+     disabled/blocked localStorage (private browsing, locked-down browsers)
+     degrades silently — the game still plays, the history just doesn't
+     remember anything. */
+  const HISTORY_KEY = 'rebellion.scoreHistory.v1';
+  const HISTORY_MAX = 100;
+
+  /**
+   * Load saved history rows, most-recent first.
+   * @returns {Object[]}
+   */
+  function loadGameHistory(){
+    try {
+      const raw = window.localStorage && localStorage.getItem(HISTORY_KEY);
+      if (!raw) return [];
+      const list = JSON.parse(raw);
+      return Array.isArray(list) ? list : [];
+    } catch (e){ return []; }
+  }
+
+  /**
+   * Persist a completed-game entry. New entries push to the front; the list
+   * is capped to HISTORY_MAX rows.
+   * @param {Object} entry
+   */
+  function saveGameToHistory(entry){
+    try {
+      if (!window.localStorage) return;
+      const list = loadGameHistory();
+      list.unshift(entry);
+      while (list.length > HISTORY_MAX) list.pop();
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+    } catch (e){ /* quota or disabled storage — silent */ }
+  }
+
+  /**
+   * Erase all saved history. No confirmation here — the caller is expected
+   * to confirm with the user first.
+   */
+  function clearGameHistory(){
+    try { if (window.localStorage) localStorage.removeItem(HISTORY_KEY); } catch (e){}
+  }
+
+  /**
+   * Render the saved history into the modal as a scrollable list of cards.
+   * Each row shows date, player count, AI level, duration, full leaderboard
+   * (highlighting the winner and the human), and a "Replay this matchup"
+   * note. Closes back to wherever the modal was invoked from.
+   */
+  function showHistoryModal(){
+    ensureModalRefs();
+    const list = loadGameHistory();
+    modalBox.innerHTML = '';
+    const h = document.createElement('h3'); h.textContent = 'Score History'; modalBox.appendChild(h);
+    const sub = document.createElement('div'); sub.className = 'sub';
+    sub.textContent = list.length
+      ? (list.length + ' saved game' + (list.length===1?'':'s') + ' (most recent first, up to ' + HISTORY_MAX + ' kept)')
+      : 'No completed games saved yet. Play one through to start tracking.';
+    modalBox.appendChild(sub);
+
+    if (list.length){
+      const wrap = document.createElement('div'); wrap.className = 'history-list';
+      list.forEach(e => wrap.appendChild(renderHistoryEntry(e)));
+      modalBox.appendChild(wrap);
+    }
+
+    const foot = document.createElement('div'); foot.className = 'modal-foot';
+    if (list.length){
+      const clearBtn = document.createElement('button'); clearBtn.className = 'danger'; clearBtn.textContent = 'Clear History';
+      clearBtn.addEventListener('click', () => {
+        if (confirm('Erase all ' + list.length + ' saved games? This cannot be undone.')){
+          clearGameHistory();
+          showHistoryModal();      // re-render empty
+        }
+      });
+      foot.appendChild(clearBtn);
+    }
+    const okBtn = document.createElement('button'); okBtn.className = 'primary'; okBtn.textContent = 'Close';
+    okBtn.addEventListener('click', closeModal);
+    foot.appendChild(okBtn);
+    modalBox.appendChild(foot);
+    modalRoot.classList.add('open');
+  }
+
+  /* Render one history row as a self-contained card element. */
+  function renderHistoryEntry(e){
+    const card = document.createElement('div'); card.className = 'history-row';
+
+    const head = document.createElement('div'); head.className = 'h-head';
+    const when = new Date(e.endedAt);
+    const whenStr = when.toLocaleString(undefined, {
+      year:'numeric', month:'short', day:'numeric',
+      hour:'2-digit', minute:'2-digit'
+    });
+    const durStr = e.durationMs != null ? fmtElapsed(e.durationMs) : '—';
+    head.innerHTML =
+      '<span class="h-when">' + escapeHtml(whenStr) + '</span>' +
+      '<span class="h-meta">' + e.numPlayers + 'p · ' + escapeHtml(e.difficulty || '?') + ' · ' + durStr + '</span>';
+    card.appendChild(head);
+
+    // Sort players by total descending
+    const sorted = e.players.slice().sort((a, b) => b.total - a.total);
+    const table = document.createElement('table'); table.className = 'history-table';
+    let rows = '';
+    sorted.forEach((p, rank) => {
+      const isWinner = p.idx === e.winner.idx;
+      const cls = (isWinner ? ' is-winner' : '') + (p.isHuman ? ' is-human' : '');
+      const chip = '<span class="h-chip" style="background:' + escapeHtml(p.color || '#888') + '">' +
+                   escapeHtml(p.personaTag || (p.isHuman ? 'YOU' : '??')) + '</span>';
+      rows += '<tr class="' + cls.trim() + '">' +
+              '<td class="h-rank">' + (rank+1) + '</td>' +
+              '<td class="h-name">' + chip + ' ' + escapeHtml(p.name) +
+                (isWinner ? ' <span class="h-tag">★ winner</span>' : '') +
+                (p.isHuman && !isWinner ? ' <span class="h-tag h-tag-you">you</span>' : '') +
+              '</td>' +
+              '<td class="h-total num ' + (p.total >= 0 ? 'pos' : 'neg') + '">' + p.total + '</td>' +
+              '</tr>';
+    });
+    table.innerHTML = rows;
+    card.appendChild(table);
+    return card;
+  }
+
+  /* ============================================================ Timers ============================================================ */
+  /* GAME timer: counts from G.gameStartedAt (stamped at the top of the first
+     runMission). MISSION timer: counts from M.startedAt (stamped each time
+     initMissionState builds a new M). Both update once a second from a single
+     setInterval. We never stop it — the page lifetime is the game lifetime. */
+  let timerHandle = null;
+  function fmtElapsed(ms){
+    if (ms == null || ms < 0) return '--:--';
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return h > 0 ? (h + ':' + pad(m) + ':' + pad(sec)) : (pad(m) + ':' + pad(sec));
+  }
+  function tickTimers(){
+    const G = S.G, M = S.M, now = Date.now();
+    const gEl = document.getElementById('t-game');
+    const mEl = document.getElementById('t-mission');
+    if (gEl) gEl.textContent = fmtElapsed(G && G.gameStartedAt ? (now - G.gameStartedAt) : null);
+    if (mEl) mEl.textContent = fmtElapsed(M && M.startedAt    ? (now - M.startedAt)    : null);
+  }
+  function startTimers(){
+    if (timerHandle != null) return;
+    tickTimers();                          // immediate paint
+    timerHandle = setInterval(tickTimers, 1000);
+  }
+
+  /* ============================================================ Layout diagnostics ============================================================
+     Console-only. Logs the top/height/bottom of the play-area anchors so the
+     user can see if anything drifts across tricks/missions. Call from flow.js
+     at key beats. Also exposed on window for ad-hoc inspection from devtools.
+     Format is a single console.debug line so right-click → "Copy object" gives
+     a clean JSON blob to paste back. */
+  function logLayoutMetrics(label){
+    const anchors = {
+      topbar:        '.topbar',
+      opponentsRow:  '#opponents-row',
+      centerArea:    '#center-area',
+      reserveInd:    '#reserve-indicator',
+      trickSlots:    '#trick-slots',
+      centerMsg:     '#center-msg',
+      humanArea:     '.human-area',
+      humanHand:     '#human-hand',
+      firstHandCard: '#human-hand .card:first-child',
+      lastHandCard:  '#human-hand .card:last-child'
+    };
+    const data = { _at: new Date().toISOString().slice(11, 19) };
+    for (const [k, sel] of Object.entries(anchors)){
+      const el = document.querySelector(sel);
+      if (!el){ data[k] = null; continue; }
+      const r = el.getBoundingClientRect();
+      data[k] = { top: +r.top.toFixed(1), h: +r.height.toFixed(1), bot: +r.bottom.toFixed(1) };
+    }
+    data._window  = { innerH: window.innerHeight, scrollY: window.scrollY };
+    data._docBody = { scrollH: document.body.scrollHeight, offsetH: document.body.offsetHeight };
+    console.debug('[layout] ' + label, data);
+  }
+  // Expose for ad-hoc devtools calls: __LAYOUT('any label')
+  if (typeof window !== 'undefined') window.__LAYOUT = logLayoutMetrics;
+
   R.ui = {
     renderAll, renderHeader, renderSeats, renderHumanHand, renderCenter,
     renderCardEl, renderCardBackEl,
@@ -671,6 +860,8 @@
     getHumanCard, setCenterMsg, setCenterMsgHTML, playerChip,
     showScoreboardModal, showScoringModal, showFinalResults, showHumanPileModal,
     cardSort, attachUiHandlers, animateTrickCapture, formatTime, awaitContinue,
-    elevateWinnerSeat, clearWinnerElevation, showWinScoreFlash
+    elevateWinnerSeat, clearWinnerElevation, showWinScoreFlash,
+    startTimers, fmtElapsed, logLayoutMetrics,
+    saveGameToHistory, loadGameHistory, clearGameHistory, showHistoryModal
   };
 })();
