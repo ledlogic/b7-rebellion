@@ -15,6 +15,20 @@
   const S = R.state;
 
   /* ============================================================ Card rendering ============================================================ */
+
+  /** Look up the AI-tier symbol for a player ('Δ', 'Γ', 'Β', etc.) by reading
+   *  the first character of the registered AI label. Returns empty string for
+   *  humans or unregistered tiers. Used to prefix AI ranks on the table so the
+   *  player can tell which opponent is at which tier when mixing them. */
+  function tierGlyph(player){
+    if (!player || player.isHuman || !player.difficulty) return '';
+    const ai = R.ai && R.ai.get(player.difficulty);
+    if (!ai || !ai.label) return '';
+    /* Labels are formatted as "Δ Delta — Conscript" — first char is the glyph. */
+    const first = ai.label.charAt(0);
+    return /[A-Za-z0-9]/.test(first) ? '' : first;
+  }
+
   function renderCardEl(card, clickable, tiny){
     const el = document.createElement('div');
     el.className = 'card suit-' + card.suit + (clickable ? ' clickable' : '') + (tiny ? ' tiny' : '');
@@ -83,7 +97,9 @@
       div.className = 'log-line';
       const c = player.color;
       const tagText = player.isHuman ? 'YOU' : player.persona.tag;
-      const tooltip = player.isHuman ? 'You' : (player.persona.name + ' — ' + player.persona.role);
+      const glyph   = player.isHuman ? '' : tierGlyph(player);
+      const tooltip = player.isHuman ? 'You'
+                    : (player.persona.name + ' — ' + (glyph ? glyph + ' ' : '') + player.persona.role);
       div.innerHTML = '<span class="tag" title="' + escapeAttr(tooltip) + '" style="background:' + c + '22;color:' + c + ';border:1px solid ' + c + '55;cursor:help;">' +
                       tagText + '</span>' + escapeHtml(text);
       feed.appendChild(div);
@@ -446,7 +462,9 @@
       av.style.background = p.color; av.textContent = p.persona.tag;
       head.appendChild(av);
       const nameWrap = document.createElement('div');
-      nameWrap.innerHTML = '<div class="name">' + p.name + '</div><div class="role">' + p.persona.role + '</div>';
+      const glyph = tierGlyph(p);
+      const roleText = glyph ? (glyph + ' ' + p.persona.role) : p.persona.role;
+      nameWrap.innerHTML = '<div class="name">' + p.name + '</div><div class="role">' + roleText + '</div>';
       head.appendChild(nameWrap);
       seat.appendChild(head);
       const stats = document.createElement('div'); stats.className = 'stats';
@@ -641,10 +659,13 @@
     modalBox.appendChild(sub);
     const table = document.createElement('table'); table.className = 'score-table';
     table.innerHTML = '<tr><th>Player</th><th>Total</th></tr>' +
-      G.players.slice().sort((a, b) => G.totals[b.idx] - G.totals[a.idx]).map(p =>
-        '<tr><td>' + p.name + (p.isHuman ? '' : ' <span style="color:var(--muted);font-size:11px;">(' + p.persona.role + ')</span>') +
-        '</td><td class="num ' + (G.totals[p.idx] >= 0 ? 'pos' : 'neg') + '">' + G.totals[p.idx] + '</td></tr>'
-      ).join('');
+      G.players.slice().sort((a, b) => G.totals[b.idx] - G.totals[a.idx]).map(p => {
+        const glyph = tierGlyph(p);
+        const roleText = p.isHuman ? '' :
+          ' <span style="color:var(--muted);font-size:11px;">(' + (glyph ? glyph + ' ' : '') + p.persona.role + ')</span>';
+        return '<tr><td>' + p.name + roleText +
+               '</td><td class="num ' + (G.totals[p.idx] >= 0 ? 'pos' : 'neg') + '">' + G.totals[p.idx] + '</td></tr>';
+      }).join('');
     modalBox.appendChild(table);
     const foot = document.createElement('div'); foot.className = 'modal-foot';
     const okBtn = document.createElement('button'); okBtn.className = 'primary'; okBtn.textContent = 'Close';

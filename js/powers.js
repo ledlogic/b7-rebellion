@@ -120,9 +120,12 @@
 
   /** Orac scoring power: called from scoreMission (Step 1) if the holder wants to cancel a person card.
    *  Per v2.44 rulebook: target is any person card (Hearts, Spades, Dayna 10♣, or Vila) from ANY
-   *  player's Capture Pile, including the holder's own. */
+   *  player's Capture Pile, including the holder's own.
+   *  @returns {?{card,owner}} the {card, owner} that was cancelled, or null if no eligible
+   *  target existed OR the human chose to skip. The caller uses this to push a detailed
+   *  scoring note that names the specific target and owner. */
   async function powerOracCancel(winner){
-    if (winner.oracUsed) return;
+    if (winner.oracUsed) return null;
     const G = S.G;
     /* Pool: every eligible card across ALL players' captured piles, with owner. */
     const pool = [];
@@ -133,7 +136,7 @@
         }
       }
     }
-    if (pool.length === 0) return;
+    if (pool.length === 0) return null;
 
     let pick;
     if (winner.isHuman){
@@ -170,8 +173,11 @@
                                                     : E.possessiveOf(pick.owner.name) + ' captured cards';
       UI.logSystem(winner.name + ' uses Orac (A♦) to cancel ' + C.cardLabel(pick.card) + ' (' + C.cardName(pick.card) + ') in ' + where + ' — scores 0 this Mission.');
       if (!winner.isHuman) UI.say(winner, 'power');
+      UI.renderAll(); await E.sleep(250);
+      return pick;
     }
     UI.renderAll(); await E.sleep(250);
+    return null;
   }
 
   async function powerPickLock(winner){

@@ -466,8 +466,12 @@
     for (const pIdx of order){
       const p = G.players[pIdx];
       if (C.pileHas(p.pile, 'D', 'A') && !p.oracUsed){
-        await POW.powerOracCancel(p);
-        if (p.oracUsed) notes.push(p.name + ' uses Orac (A♦) to cancel a person card this Mission. (See comms log for which card.)');
+        const pick = await POW.powerOracCancel(p);
+        if (pick){
+          const where = (pick.owner.idx === p.idx) ? 'their own captured cards'
+                                                   : E.possessiveOf(pick.owner.name) + ' captured cards';
+          notes.push(p.name + ' uses Orac (A♦) to cancel ' + C.cardLabel(pick.card) + ' (' + C.cardName(pick.card) + ') in ' + where + ' — scores 0.');
+        }
       }
     }
 
