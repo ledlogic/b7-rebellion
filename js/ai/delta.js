@@ -43,6 +43,7 @@
   R.ai.register('delta', {
     label: 'Δ Delta — Conscript',
     description: 'One-card heuristic, no memory. Quick, reactive, exploitable.',
+    iq: 92,           // empirical: 21.9% win rate vs Gamma in 500-game tournament, seed 42
     chooseCard
     /* no chooseZenTarget / choosePickLockTarget — both default to random */
   });

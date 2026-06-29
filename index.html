@@ -15,7 +15,7 @@
       <div class="glyph">FEDERATION ENCRYPTED CHANNEL // PRIVATE GAME</div>
       <h1>REBELLION</h1>
       <p>A Trick-Taking Game of Crew, Tech, Hazards &amp; the Federation</p>
-      <div class="version">VERSION 2.51 // 2026-06-28 // MODULAR BUILD</div>
+      <div class="version">VERSION 2.56 // 2026-06-28 // MODULAR BUILD</div>
     </div>
 
     <div class="setup-section">
@@ -23,9 +23,11 @@
       <div class="count-row" id="count-row"></div>
     </div>
 
-    <div class="setup-section">
-      <label class="title">Federation Skill Grade (AI Difficulty)</label>
-      <div class="count-row" id="difficulty-row"></div>
+    <div class="setup-section locked" id="difficulty-section">
+      <label class="title">Federation Skill Grade (Opponent Mix)</label>
+      <div class="presets-row" id="presets-row"></div>
+      <div class="mix-counters" id="mix-counters"></div>
+      <div class="mix-status" id="mix-status">Pick the number of players first.</div>
       <div style="font-size:11px;color:var(--dim);margin-top:8px;font-style:italic;line-height:1.5;">
         Each AI is its own plug-in module. Drop a new <span class="mono">ai/&lt;name&gt;.js</span> file and it appears here automatically.
       </div>
@@ -138,6 +140,7 @@
 <script src="js/ai/registry.js"></script>
 <script src="js/ai/delta.js"></script>
 <script src="js/ai/gamma.js"></script>
+<script src="js/ai/beta.js"></script>
 
 <!-- UI (needs engine + state), powers (needs UI + AI), flow (needs everything) -->
 <script src="js/ui.js"></script>

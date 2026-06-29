@@ -243,30 +243,24 @@
       if (M.missionOver) return;
     }
 
-    /* Full Crew check (global, once per mission) — Gan (10♥) does NOT count */
-    let fullCrewJustFired = false;
+    /* Full Crew check (global, once per mission) — Gan (10♥) does NOT count.
+       Note: triggering the Full Crew does NOT protect against Star One.
+       Per v2.46 rulebook clarification, the two are completely independent. */
     if (!M.fullCrewClaimed && M.reserve.length > 0){
       if (C.pileHas(winner.pile, 'H', 'A') && winner.pile.some(C.isHeartFace)){
-        fullCrewJustFired = true;
         await resolveFullCrew(winner);
         if (M.missionOver) return;
       }
     }
 
-    /* Star One ends the mission — unless intercepted.
-       Two interceptions are possible:
-         (a) Liberator (Q♦) captured in the same trick — classic intercept.
-         (b) Full Crew fired this same trick. The elite team locks Star One
-             down before the detonation propagates. */
+    /* Star One ends the mission — only the Liberator (Q♦) in the same trick
+       intercepts. Per v2.46 rulebook clarification: "The Full Crew and the
+       Ace of Clubs are completely independent events. One does not cancel
+       or protect against the other." */
     if (hasStarOne){
       if (hasLiberator){
         UI.logSystem('🚀 ' + winner.name + ' captures the Liberator (Q♦) in the same trick as Star One — the Liberator intercepts the detonation, Mission continues.');
         UI.setCenterMsg('The Liberator intercepts Star One. Mission continues!');
-        M.starOneBattleOccurred = true; // counts for Dayna
-        await E.sleep(900);
-      } else if (fullCrewJustFired){
-        UI.logSystem('★ ' + winner.name + ' completes the Full Crew (Avon + a Hearts face) in the same trick as Star One — the crew locks Star One down, Mission continues. The Ace of Clubs scores normally as −5.');
-        UI.setCenterMsg('The Full Crew suppresses Star One. Mission continues!');
         M.starOneBattleOccurred = true; // counts for Dayna
         await E.sleep(900);
       } else {
@@ -446,12 +440,15 @@
     M.reserve = [];
     M.invasionActive = false;
     UI.logSystem(winner.name + ' (Full Crew) takes ' + (taken.length ? taken.map(C.cardLabel).join(' ') : 'nothing from the Reserve') + '. Remaining Reserve cards are locked away for good.');
-    /* If Star One (A♣) was among the Reserve cards just claimed, its
-       Mission-ending power is suppressed — it never entered play, it was
-       lifted silently out of the Reserve by the Full Crew. It still scores
-       its −5, but the game does not end. */
+    /* Per strict v2.46: A♣ entering a Capture Pile ends the Mission, full
+       stop. The Liberator (Q♦) intercept only applies when both are played
+       to the SAME TRICK; Reserve-claim doesn't qualify. */
     if (taken.some(c => c.suit === 'C' && c.rank === 'A')){
-      UI.logSystem('★ ' + winner.name + ' takes Star One (A♣) silently from the Reserve — its detonation never fires, since the card never entered play. It scores normally as −5; the Mission continues.');
+      M.missionOver = true; M.missionResult = 'starOne';
+      M.starOneBattleOccurred = true;
+      UI.setCenterMsg('STAR ONE was in the Reserve! Mission ends immediately.');
+      UI.logSystem('☢ ' + winner.name + ' claims Star One (A♣) from the Reserve via Full Crew — Mission ends immediately. Cards still in hand score nothing.');
+      if (!winner.isHuman) UI.say(winner, 'starOne');
     }
     UI.renderAll(); await E.sleep(300);
   }
@@ -511,6 +508,14 @@
             const target = hearts.slice().sort((a, b) => C.basePoints(a) - C.basePoints(b))[0];
             target._cancelled = true;
             notes.push(p.name + ' holds the Mutoid (J♠) — she drains ' + C.cardLabel(target) + ' from ' + E.possessiveOf(p.name) + ' Hearts for blood serum (the lowest-value Heart), now scoring 0.');
+          }
+        } else {
+          /* v2.46 — Mutoid with no Hearts available cannot get her serum.
+             She stops working and scores 0 herself (instead of her usual −10). */
+          const mutoid = p.pile.find(c => c.suit === 'S' && c.rank === 'J');
+          if (mutoid && !mutoid._cancelled && !mutoid._assassinated){
+            mutoid._cancelled = true;
+            notes.push(p.name + ' holds the Mutoid (J♠) — no Hearts in their pile, she cannot get her serum, stops working, and scores 0 herself (instead of her usual −10).');
           }
         }
       }

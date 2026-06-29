@@ -103,6 +103,93 @@ button.danger{border-color:var(--spade);color:var(--spade);}
 .count-row{display:flex;gap:8px;flex-wrap:wrap;}
 .count-row button{flex:1;min-width:54px;font-size:16px;font-weight:700;}
 .count-row button.selected{background:var(--teal);color:#06120f;border-color:var(--teal);}
+
+/* Presets row — quick distribution buttons sitting above the per-tier
+   counters. Clicking a preset auto-fills the counters; manual counter
+   edits drop the preset selection to "Custom". */
+/* Locked sections — used by the opponent-mix picker until the player
+   count is chosen. Visually communicates "you can't use this yet" without
+   removing it from the layout. */
+.setup-section.locked{
+  opacity:0.42;
+  pointer-events:none;
+  position:relative;
+  filter:saturate(0.4);
+}
+.setup-section.locked .title:after{
+  content:' 🔒';
+  font-size:0.85em;
+  color:var(--muted);
+}
+
+.presets-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.presets-row button{
+  padding:6px 12px;font-size:12px;font-family:monospace;letter-spacing:0.04em;
+  background:var(--panel3);border:1px solid var(--border);color:var(--text);
+  border-radius:5px;cursor:pointer;transition:filter .15s ease;
+}
+.presets-row button:hover{filter:brightness(1.3);}
+.presets-row button.selected{
+  background:var(--teal);color:#06120f;border-color:var(--teal);
+}
+.presets-row button.custom{font-style:italic;}
+
+/* Per-tier counter rows — one row per AI tier, with a label + IQ badge
+   on the left and an inline [−] N [+] stepper on the right. */
+.mix-counters{display:flex;flex-direction:column;gap:8px;}
+.mix-row{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 14px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;
+}
+.mix-row .mix-label{flex:1;font-weight:700;font-size:14px;}
+.mix-row .mix-iq{
+  font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;
+  font-size:10px;font-weight:600;letter-spacing:0.08em;
+  color:var(--gold);background:rgba(232,196,104,0.08);
+  border:1px solid rgba(232,196,104,0.35);border-radius:3px;
+  padding:1px 6px;cursor:help;margin-right:8px;
+}
+.mix-stepper{display:flex;align-items:center;gap:6px;}
+.mix-stepper button{
+  width:30px;height:30px;padding:0;font-size:18px;font-weight:700;line-height:1;
+  background:var(--panel3);border:1px solid var(--border);color:var(--text);
+  border-radius:4px;cursor:pointer;transition:filter .15s ease;
+}
+.mix-stepper button:hover:not(:disabled){filter:brightness(1.3);}
+.mix-stepper button:disabled{opacity:0.3;cursor:not-allowed;}
+.mix-stepper .mix-count{
+  min-width:28px;text-align:center;font-family:monospace;font-size:16px;font-weight:700;
+  color:var(--text);
+}
+
+/* Status line — green check when total matches, red warning otherwise */
+.mix-status{
+  font-family:monospace;font-size:12px;letter-spacing:0.04em;
+  padding:8px 12px;margin-top:8px;border-radius:5px;
+  background:var(--panel2);border:1px solid var(--border);
+  color:var(--muted);text-align:center;
+}
+.mix-status.ok{color:var(--good);border-color:var(--good);background:rgba(95,208,137,0.06);}
+.mix-status.bad{color:var(--bad);border-color:var(--bad);background:rgba(229,86,79,0.06);}
+
+/* Difficulty buttons carry an IQ badge below the label, so they use a
+   stacked layout rather than the simple single-line layout of player-count
+   buttons. .ai-btn is added per-button by app.js. */
+.count-row button.ai-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;padding:10px 14px;line-height:1.2;
+}
+.count-row button.ai-btn .ai-label{font-size:14px;font-weight:700;}
+.count-row button.ai-btn .ai-iq{
+  font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;
+  font-size:10px;font-weight:600;letter-spacing:0.08em;
+  color:var(--gold);background:rgba(232,196,104,0.08);
+  border:1px solid rgba(232,196,104,0.35);border-radius:3px;
+  padding:1px 6px;cursor:help;
+}
+.count-row button.ai-btn.selected .ai-iq{
+  color:#3a2a00;background:rgba(0,0,0,0.18);border-color:rgba(0,0,0,0.3);
+}
 .setup-foot{margin-top:30px;display:flex;justify-content:flex-end;gap:10px;align-items:center;}
 .setup-foot-link{
   color:var(--teal);font-family:monospace;font-size:13px;text-decoration:none;

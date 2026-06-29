@@ -15,13 +15,15 @@
  *   --seats    L,L,L,L   AI level per seat, comma-list.    (default: all gamma)
  *                        Length must equal --players.
  *                        Each L is one of: delta, gamma
- *   --weights  PATH      Path to gamma weights JSON.       (default: js/ai/gamma-weights.json)
+ *   --weights        PATH   Path to GAMMA weights JSON.    (default: js/ai/gamma-weights.json)
+ *   --beta-weights   PATH   Path to BETA weights JSON.     (default: js/ai/beta-weights.json)
  *   --seed     N         Deterministic RNG seed.           (default: time-based)
  *   --verbose            Print per-game summary lines.
  *   --json                Emit aggregate stats as JSON only (for the optimizer).
  *
  * Example:
  *   node tools/tournament.js --missions 200 --players 4 --seats gamma,delta,delta,delta
+ *   node tools/tournament.js --missions 500 --seats beta,beta,gamma,gamma  # Beta vs Gamma bake-off
  */
 'use strict';
 
@@ -35,7 +37,8 @@ function parseArgs(argv){
     missions: 50,
     players:  4,
     seats:    null,
-    weights:  path.join(__dirname, '..', 'js', 'ai', 'gamma-weights.json'),
+    weights:     path.join(__dirname, '..', 'js', 'ai', 'gamma-weights.json'),
+    betaWeights: path.join(__dirname, '..', 'js', 'ai', 'beta-weights.json'),
     seed:     null,
     verbose:  false,
     json:     false
@@ -45,7 +48,8 @@ function parseArgs(argv){
     if (a === '--missions') opts.missions = parseInt(argv[++i], 10);
     else if (a === '--players')  opts.players  = parseInt(argv[++i], 10);
     else if (a === '--seats')    opts.seats    = argv[++i].split(',').map(s => s.trim().toLowerCase());
-    else if (a === '--weights')  opts.weights  = argv[++i];
+    else if (a === '--weights')      opts.weights     = argv[++i];
+    else if (a === '--beta-weights') opts.betaWeights = argv[++i];
     else if (a === '--seed')     opts.seed     = parseInt(argv[++i], 10);
     else if (a === '--verbose')  opts.verbose  = true;
     else if (a === '--json')     opts.json     = true;
@@ -58,7 +62,7 @@ function parseArgs(argv){
     throw new Error('--seats list (' + opts.seats.length + ') must match --players (' + opts.players + ')');
   }
   for (const s of opts.seats){
-    if (s !== 'delta' && s !== 'gamma') throw new Error('Unknown AI level in --seats: ' + s);
+    if (s !== 'delta' && s !== 'gamma' && s !== 'beta') throw new Error('Unknown AI level in --seats: ' + s);
   }
   return opts;
 }
@@ -109,7 +113,8 @@ function loadGameContext(rng){
     'js/personas/default.js',
     'js/ai/registry.js',
     'js/ai/delta.js',
-    'js/ai/gamma.js'
+    'js/ai/gamma.js',
+    'js/ai/beta.js'
   ];
   const lateFiles = [
     'js/powers.js',
@@ -244,12 +249,18 @@ async function main(){
   const ctx = loadGameContext(rng);
   const R = ctx.window.Rebellion;
 
-  /* Apply weights, if Gamma is in the lineup. */
+  /* Apply weights for any AI levels in the lineup that have a tunable
+     weights file. Each level only loads its weights if at least one seat
+     uses it, so a delta-only run doesn't read JSON files. */
   if (opts.seats.includes('gamma')){
-    const wRaw = fs.readFileSync(opts.weights, 'utf8');
-    const w = JSON.parse(wRaw);
+    const w = JSON.parse(fs.readFileSync(opts.weights, 'utf8'));
     R.ai.get('gamma').setWeights(w);
-    if (!opts.json) console.log('[weights] loaded ' + Object.keys(w).length + ' values from ' + path.relative(process.cwd(), opts.weights));
+    if (!opts.json) console.log('[gamma weights] loaded ' + Object.keys(w).length + ' values from ' + path.relative(process.cwd(), opts.weights));
+  }
+  if (opts.seats.includes('beta')){
+    const w = JSON.parse(fs.readFileSync(opts.betaWeights, 'utf8'));
+    R.ai.get('beta').setWeights(w);
+    if (!opts.json) console.log('[beta weights]  loaded ' + Object.keys(w).length + ' values from ' + path.relative(process.cwd(), opts.betaWeights));
   }
 
   if (!opts.json){

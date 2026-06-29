@@ -1,7 +1,15 @@
-/* Rebellion — ai/gamma.js
- * Γ GAMMA — Officer tier.
+/* Rebellion — ai/beta.js
+ * Β BETA — Strategist tier.
  *
- * Tracks every revealed card and every known void during the mission, then:
+ * Architectural twin of Gamma — same decision logic, same knob structure,
+ * but its own independent weights namespace loaded from beta-weights.json.
+ * Initially ships with weights identical to Gamma, so a fresh install has
+ * Beta playing the same way Gamma does. The offline optimizer (tools/
+ * optimize.js, future work) tunes beta-weights.json against a fitness
+ * function (win rate / score-diff in headless tournaments), leaving Gamma
+ * untouched as a reproducible baseline to A/B against.
+ *
+ * Behavior summary (matches Gamma until weights diverge):
  *   - Leading: prefer dumping low-rank spades/clubs (force opponents to capture
  *     negatives). Never lead hearts, joker, Servalan or Star One.
  *   - Following: compute the real value of capturing this trick (including
@@ -11,15 +19,15 @@
  *     not to win when we don't.
  *   - Sluffing: dump the most-negative card (worst for whoever captures).
  *
- * All knobs sit in WEIGHTS below — separated so an offline tuner can later
- * replace them with empirically-optimized values without touching the logic.
+ * All knobs sit in WEIGHTS below — replaced wholesale by setWeights() at
+ * tournament-harness or optimizer startup.
  */
 (function () {
   'use strict';
   const R = (window.Rebellion = window.Rebellion || {});
 
   /* ---- Tunable weights. The optimizer overwrites these via setWeights().
-   * The defaults below match the shipping gamma-weights.json. ---- */
+   * The defaults below match the shipping beta-weights.json. ---- */
   const DEFAULT_WEIGHTS = {
     /* Leading bias by suit (lower = more preferred to lead) */
     lead_heart_bias:    60,
@@ -175,10 +183,10 @@
     return exposed || others.slice().sort((a, b) => b.hand.length - a.hand.length)[0];
   }
 
-  R.ai.register('gamma', {
-    label: 'Γ Gamma — Officer',
-    description: 'Tracks every play, counts what is still out, exploits known voids.',
-    iq: 123,          // empirical: 34.2% win rate vs Delta in 500-game tournament, seed 42
+  R.ai.register('beta', {
+    label: 'Β Beta — Strategist',
+    description: 'Gamma-class heuristics with offline-tuned weights. Initially identical to Gamma; diverges as the optimizer runs.',
+    iq: 123,          // currently identical to Gamma (same weights); rerun tournament after tuning to update
     chooseCard,
     chooseZenTarget,
     choosePickLockTarget,

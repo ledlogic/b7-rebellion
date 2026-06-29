@@ -421,6 +421,9 @@
     document.getElementById('hdr-dealer').textContent = G.players[M.dealerIdx].name;
     document.getElementById('hdr-trick').textContent = M.trickNumber;
     document.getElementById('hdr-reserve').textContent = M.reserve.length;
+    /* Header AI tag: if G.difficulty matches a single registered tier,
+       show its label (e.g. "Γ Gamma"); otherwise it's a mix string like
+       "Δ2 Γ2 Β2" — show it verbatim. */
     const def = R.ai.get(G.difficulty);
     document.getElementById('hdr-ai').textContent = def ? def.label.split(' — ')[0] : G.difficulty;
     document.getElementById('comms-mission-tag').textContent = 'M' + (G.missionIndex+1);

@@ -229,6 +229,16 @@
     UI.logSystem('⚡ ' + winner.name + ' captures Travis (K♠) — Travis seizes the entire remaining Reserve (' + taken.length + ' cards) into their pile: ' + taken.map(C.cardLabel).join(' ') + '.');
     if (!winner.isHuman) UI.say(winner, 'reserve');
     else await UI.askInfo('Travis — Reserve Seized', 'You captured Travis. The entire remaining Reserve is seized into your captured cards.', taken);
+    /* Per strict v2.46: A♣ entering a Capture Pile ends the Mission, full
+       stop. Travis-seized Star One isn't shielded — the Liberator intercept
+       requires both cards in the same trick, and A♣ pulled from Reserve
+       wasn't played to the trick. */
+    if (taken.some(c => c.suit === 'C' && c.rank === 'A')){
+      M.missionOver = true; M.missionResult = 'starOne';
+      UI.setCenterMsg('STAR ONE was in the Reserve! Mission ends immediately.');
+      UI.logSystem('☢ ' + winner.name + ' seizes Star One (A♣) from the Reserve via Travis — Mission ends immediately. Cards still in hand score nothing.');
+      if (!winner.isHuman) UI.say(winner, 'starOne');
+    }
     UI.renderAll(); await E.sleep(300);
   }
 

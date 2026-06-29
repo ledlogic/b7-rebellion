@@ -42,7 +42,7 @@
     return pickFrom(NAME_DATA.standalone);
   }
 
-  /* ---- Build player count buttons (3..7) ---- */
+  /* ---- Build player count buttons (2..7) ---- */
   const countRow = document.getElementById('count-row');
   let chosenCount = null;
   for (let n = 2; n <= 7; n++){
@@ -54,30 +54,184 @@
       b.classList.add('selected');
       document.getElementById('blurb-missions').textContent = (n === 1 ? 'one Mission' : n + ' Missions total');
       document.getElementById('setup-blurb').removeAttribute('hidden');
-      document.getElementById('btn-start').disabled = false;
+      /* Unlock the opponent-mix section now that we know the opponent count.
+         The .locked class on the section dims it and blocks pointer events
+         until this point. Safe to call repeatedly. */
+      document.getElementById('difficulty-section').classList.remove('locked');
+      /* Player-count drives opponent-count, so re-apply the current preset
+         to redistribute the mix across the new opponent-count. */
+      reapplyCurrentPreset();
     });
     countRow.appendChild(b);
   }
 
-  /* ---- Build difficulty buttons from the AI registry ---- */
-  const diffRow = document.getElementById('difficulty-row');
-  let chosenDifficulty = 'gamma';
-  for (const ai of R.ai.list()){
-    const b = document.createElement('button');
-    b.dataset.d = ai.key;
-    b.textContent = ai.label;
-    if (ai.key === chosenDifficulty) b.classList.add('selected');
-    b.addEventListener('click', () => {
-      chosenDifficulty = ai.key;
-      [...diffRow.children].forEach(c => c.classList.remove('selected'));
-      b.classList.add('selected');
-    });
-    diffRow.appendChild(b);
+  /* ============================================================
+   * Opponent mix picker — presets row + per-tier counters.
+   * AI tier list is built dynamically from R.ai.list() so adding
+   * a new tier (alpha later) auto-extends both presets and counters.
+   * ============================================================ */
+  const aiList = R.ai.list();           // [delta, gamma, beta] in registration order
+  const aiKeys = aiList.map(a => a.key);
+
+  /** Current opponent mix — counts per tier. Sums to numOpponents. */
+  let chosenMix = Object.fromEntries(aiKeys.map(k => [k, 0]));
+  let selectedPreset = 'officers';      // default preset matches old "all Gamma" behavior
+
+  function numOpponents(){ return chosenCount == null ? 0 : (chosenCount - 1); }
+  function mixTotal(){ return aiKeys.reduce((s, k) => s + chosenMix[k], 0); }
+
+  /** Distribute n opponents as evenly as possible across the tiers,
+   *  biasing the remainder toward the stronger end (Gamma > Beta > Delta). */
+  function balancedSplit(n){
+    const result = Object.fromEntries(aiKeys.map(k => [k, 0]));
+    if (n <= 0) return result;
+    const base = Math.floor(n / aiKeys.length);
+    let rem = n - base * aiKeys.length;
+    for (const k of aiKeys) result[k] = base;
+    /* Bias the remainder toward middle/strong tiers — order: gamma, beta, delta */
+    const bias = ['gamma', 'beta', 'delta'].filter(k => aiKeys.includes(k));
+    for (let i = 0; i < rem; i++) result[bias[i % bias.length]]++;
+    return result;
   }
+
+  /* Presets — id, label, and a function that maps n→mix. The "custom"
+     preset has no distribute function; it's set whenever the user manually
+     edits a counter, leaving the current mix as-is. */
+  const PRESETS = [
+    { id:'conscripts',  label:'All Δ Conscripts',  distribute:n => ({delta:n, gamma:0, beta:0}) },
+    { id:'officers',    label:'All Γ Officers',    distribute:n => ({delta:0, gamma:n, beta:0}) },
+    { id:'strategists', label:'All Β Strategists', distribute:n => ({delta:0, gamma:0, beta:n}) },
+    { id:'balanced',    label:'Balanced Mix',      distribute:balancedSplit },
+    { id:'custom',      label:'Custom',            distribute:null }
+  ];
+
+  function applyPreset(id){
+    selectedPreset = id;
+    const preset = PRESETS.find(p => p.id === id);
+    if (preset && preset.distribute){
+      chosenMix = preset.distribute(numOpponents());
+    }
+    renderMixUI();
+    updateStartButton();
+  }
+
+  function reapplyCurrentPreset(){
+    if (selectedPreset && selectedPreset !== 'custom') applyPreset(selectedPreset);
+    else { renderMixUI(); updateStartButton(); }
+  }
+
+  function adjustMix(tier, delta){
+    const newVal = (chosenMix[tier] || 0) + delta;
+    if (newVal < 0) return;
+    if (mixTotal() + delta > numOpponents() && delta > 0) return; // don't exceed total
+    chosenMix[tier] = newVal;
+    selectedPreset = 'custom';
+    renderMixUI();
+    updateStartButton();
+  }
+
+  /* Build presets row (once) */
+  const presetsRow = document.getElementById('presets-row');
+  for (const p of PRESETS){
+    const b = document.createElement('button');
+    b.textContent = p.label;
+    b.dataset.preset = p.id;
+    if (p.id === 'custom') b.classList.add('custom');
+    b.addEventListener('click', () => applyPreset(p.id));
+    presetsRow.appendChild(b);
+  }
+
+  /* Build counter rows (once) — labels, IQ badges, +/- buttons */
+  const mixCountersEl = document.getElementById('mix-counters');
+  for (const ai of aiList){
+    const row = document.createElement('div'); row.className = 'mix-row'; row.dataset.tier = ai.key;
+    const lab = document.createElement('span'); lab.className = 'mix-label'; lab.textContent = ai.label;
+    row.appendChild(lab);
+    if (typeof ai.iq === 'number'){
+      const iq = document.createElement('span'); iq.className = 'mix-iq'; iq.textContent = 'IQ ' + ai.iq;
+      iq.title = 'IQ = 100 + (winRate − 1/numPlayers) × 250. Calibrated from headless tournaments.';
+      row.appendChild(iq);
+    }
+    const stp = document.createElement('span'); stp.className = 'mix-stepper';
+    const minus = document.createElement('button'); minus.textContent = '−';
+    minus.addEventListener('click', () => adjustMix(ai.key, -1));
+    const count = document.createElement('span'); count.className = 'mix-count'; count.dataset.count = ai.key;
+    const plus  = document.createElement('button'); plus.textContent = '+';
+    plus.addEventListener('click', () => adjustMix(ai.key, +1));
+    stp.appendChild(minus); stp.appendChild(count); stp.appendChild(plus);
+    row.appendChild(stp);
+    mixCountersEl.appendChild(row);
+  }
+
+  /** Update visible counters, presets-row highlight, and status line. */
+  function renderMixUI(){
+    /* Counters */
+    for (const k of aiKeys){
+      const el = mixCountersEl.querySelector('[data-count="' + k + '"]');
+      if (el) el.textContent = chosenMix[k];
+      /* Disable +/− at bounds */
+      const row = mixCountersEl.querySelector('[data-tier="' + k + '"]');
+      if (!row) continue;
+      const steppers = row.querySelectorAll('.mix-stepper > *');
+      if (steppers.length < 3) continue;
+      const minus = steppers[0], plus = steppers[2];
+      minus.disabled = chosenMix[k] <= 0;
+      plus.disabled  = mixTotal() >= numOpponents();
+    }
+    /* Presets highlight */
+    [...presetsRow.children].forEach(b => {
+      b.classList.toggle('selected', b.dataset.preset === selectedPreset);
+    });
+    /* Status line */
+    const st = document.getElementById('mix-status');
+    const total = mixTotal(), need = numOpponents();
+    if (chosenCount == null){
+      st.textContent = 'Pick the number of players first.';
+      st.className = 'mix-status';
+    } else if (total === need){
+      st.textContent = '✓ ' + total + ' opponent' + (total === 1 ? '' : 's') + ' configured — ready to deal.';
+      st.className = 'mix-status ok';
+    } else {
+      const diff = need - total;
+      st.textContent = (diff > 0 ? '+' + diff + ' more to assign' : Math.abs(diff) + ' too many')
+                     + ' — need exactly ' + need + ' opponent' + (need === 1 ? '' : 's') + ', currently ' + total + '.';
+      st.className = 'mix-status bad';
+    }
+  }
+
+  function updateStartButton(){
+    const need = numOpponents();
+    const total = mixTotal();
+    document.getElementById('btn-start').disabled = !(chosenCount && total === need);
+  }
+
+  applyPreset('officers');  // initial render with all-Gamma default
 
   document.getElementById('btn-start').addEventListener('click', startGameSetup);
   document.getElementById('btn-history').addEventListener('click', UI.showHistoryModal);
   UI.attachUiHandlers();
+
+  /** Build the per-seat AI tier list from chosenMix, then shuffle so seat
+   *  order doesn't always run Δ Δ Γ Γ Β Β left-to-right. */
+  function buildAiTierList(){
+    const tiers = [];
+    for (const k of aiKeys) for (let i = 0; i < chosenMix[k]; i++) tiers.push(k);
+    /* Fisher-Yates */
+    for (let i = tiers.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [tiers[i], tiers[j]] = [tiers[j], tiers[i]];
+    }
+    return tiers;
+  }
+
+  /** Human-readable summary of the mix for G.difficulty and the header chip. */
+  function describeMix(){
+    const used = aiKeys.filter(k => chosenMix[k] > 0);
+    if (used.length === 1) return used[0];      // uniform — return tier key
+    /* Mixed — compact label like "Δ2 Γ2 Β2" */
+    const glyph = { delta:'Δ', gamma:'Γ', beta:'Β' };
+    return aiKeys.filter(k => chosenMix[k] > 0).map(k => (glyph[k] || k) + chosenMix[k]).join(' ');
+  }
 
   async function startGameSetup(){
     document.getElementById('btn-start').disabled = true;
@@ -87,9 +241,10 @@
     document.querySelector('.setup-card').classList.add('dealer-mode');
     const n = chosenCount;
     const personaPool = R.personas.pickN(n - 1);
+    const aiTiers = buildAiTierList();
     const players = [];
     players.push(S.newPlayer(0, true, null, null));
-    for (let i = 1; i < n; i++) players.push(S.newPlayer(i, false, personaPool[i-1], chosenDifficulty));
+    for (let i = 1; i < n; i++) players.push(S.newPlayer(i, false, personaPool[i-1], aiTiers[i-1]));
 
     S.G = {
       numPlayers: n,
@@ -98,7 +253,8 @@
       totals: new Array(n).fill(0),
       missionLog: [],
       startDealer: 0,
-      difficulty: chosenDifficulty,
+      difficulty: describeMix(),
+      mix:        Object.assign({}, chosenMix),  // structured mix for export/replay
       systemName: generateSystemName(),   // Saurian Major, Cygnus Alpha, Centero IV...
       gameStartedAt: null   // stamped on first runMission, drives the GAME header timer
     };
