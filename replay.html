@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rebellion — Game Log Replay</title>
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/replay.css">
+</head>
+<body>
+
+<!-- ===================== TOP BAR ===================== -->
+<header class="replay-top">
+  <div class="replay-top-left">
+    <a href="index.html" class="replay-back" title="Back to the game">← Game</a>
+    <span class="replay-title">REBELLION // REPLAY</span>
+  </div>
+  <div class="replay-top-right">
+    <span class="version" id="replay-version">VERSION 2.47 // 2026-06-28 // REPLAY</span>
+  </div>
+</header>
+
+<!-- ===================== LOADER ===================== -->
+<section class="loader-panel" id="loader-panel">
+  <h2>Load a Game Log</h2>
+  <p class="loader-blurb">
+    Drop in a <code>b7-rebellion-YYYYMMDD.json</code> file exported from the game,
+    or paste the JSON directly.
+  </p>
+
+  <div class="loader-row">
+    <label class="loader-method">
+      <div class="loader-method-head">
+        <span class="loader-num">1</span> Load from file
+      </div>
+      <input type="file" id="file-input" accept=".json,application/json">
+      <div class="loader-hint">Or drag &amp; drop a <code>.json</code> file anywhere on this page.</div>
+    </label>
+
+    <div class="loader-divider">— or —</div>
+
+    <label class="loader-method">
+      <div class="loader-method-head">
+        <span class="loader-num">2</span> Paste JSON
+      </div>
+      <textarea id="paste-input" placeholder='Paste the contents of your b7-rebellion-YYYYMMDD.json file here...' rows="8"></textarea>
+      <button id="btn-paste-load" class="primary">Load Pasted JSON</button>
+    </label>
+  </div>
+
+  <div id="loader-error" class="loader-error" hidden></div>
+</section>
+
+<!-- ===================== REPLAY VIEW ===================== -->
+<section class="replay-view" id="replay-view" hidden>
+
+  <!-- Game header strip -->
+  <div class="replay-game-info" id="replay-game-info"></div>
+
+  <!-- Control bar -->
+  <div class="replay-controls">
+    <button id="btn-first" title="Jump to start">⏮</button>
+    <button id="btn-prev"  title="Previous step (← key)">◀</button>
+    <button id="btn-play"  title="Auto-play (Space key)">▶ Play</button>
+    <button id="btn-next"  title="Next step (→ key)">▶</button>
+    <button id="btn-last"  title="Jump to end">⏭</button>
+    <span class="replay-pos" id="replay-pos">— / —</span>
+    <label class="replay-speed">
+      Speed:
+      <select id="speed-select">
+        <option value="2500">Slow (2.5 s)</option>
+        <option value="1500" selected>Normal (1.5 s)</option>
+        <option value="750">Fast (0.75 s)</option>
+        <option value="300">Very Fast (0.3 s)</option>
+      </select>
+    </label>
+    <button id="btn-load-new" class="ghost" title="Load a different log">↺ Load Different Log</button>
+  </div>
+
+  <!-- Main playback area -->
+  <div class="replay-main">
+
+    <!-- Left: trick visualization -->
+    <div class="replay-trick-area">
+      <div class="replay-event-banner" id="replay-event-banner"></div>
+      <div class="replay-trick" id="replay-trick"></div>
+      <div class="replay-trick-meta" id="replay-trick-meta"></div>
+    </div>
+
+    <!-- Right: scoreboard + capture piles + comms -->
+    <aside class="replay-aside">
+      <div class="replay-scoreboard" id="replay-scoreboard"></div>
+      <div class="replay-piles" id="replay-piles"></div>
+      <div class="replay-comms">
+        <div class="replay-comms-head">COMMS LOG <span class="replay-comms-pos" id="replay-comms-pos"></span></div>
+        <div class="replay-comms-feed" id="replay-comms-feed"></div>
+      </div>
+    </aside>
+
+  </div>
+
+</section>
+
+<!-- Drag-and-drop overlay -->
+<div id="drop-overlay" hidden>
+  <div class="drop-overlay-inner">⇩ Drop game-log JSON here</div>
+</div>
+
+<script src="js/card.js"></script>
+<script src="js/replay.js"></script>
+</body>
+</html>

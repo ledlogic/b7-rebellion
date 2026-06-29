@@ -45,6 +45,7 @@
         ledSuit: null,
         vilaLedSuit: null,       // declared suit when Vila leads a trick
         currentTrick: [],
+        tricks: [],              // completed tricks this mission, for export/replay
         trickNumber: 0,
         playedCards: [],
         knownVoids: {},
@@ -55,6 +56,10 @@
         _humanResolve: null,
         startedAt: Date.now()
       };
+      /* Ensure G has a commsLog array on first mission init. The UI logSystem /
+         logAndromedan / logChat helpers also push into this so the export
+         can dump a structured comms transcript instead of DOM-scraping. */
+      if (!G.commsLog) G.commsLog = [];
     },
 
     /* Called after every card play (real and Andromedan). Adds the card to the

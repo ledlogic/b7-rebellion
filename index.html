@@ -15,7 +15,7 @@
       <div class="glyph">FEDERATION ENCRYPTED CHANNEL // PRIVATE GAME</div>
       <h1>REBELLION</h1>
       <p>A Trick-Taking Game of Crew, Tech, Hazards &amp; the Federation</p>
-      <div class="version">VERSION 2.43 // MODULAR BUILD</div>
+      <div class="version">VERSION 2.51 // 2026-06-28 // MODULAR BUILD</div>
     </div>
 
     <div class="setup-section">
@@ -43,7 +43,7 @@
       <div class="center-msg" id="dealer-draw-msg"></div>
     </div>
 
-    <div class="setup-blurb">
+    <div class="setup-blurb" id="setup-blurb" hidden>
       You'll play <b id="blurb-missions">one Mission</b> total — one per player, dealer rotating each round. Total scores
       across all Missions decide who becomes Commander of the Liberator. Your table will be filled out with
       background crew &amp; opportunists pulled from the wider Rebellion — they'll talk. A lot.
@@ -51,6 +51,7 @@
 
     <div class="setup-foot">
       <button id="btn-history">View Score History</button>
+      <a href="replay.html" class="setup-foot-link" title="Open the replay viewer for a saved game-log JSON">↺ Replay Saved Game</a>
       <button class="primary" id="btn-start" disabled>Determine Dealer</button>
     </div>
   </div>
@@ -93,12 +94,21 @@
           <span class="name" id="human-name">YOU — Avon's Crew</span>
           <span class="stats" id="human-stats">HAND: 0 · CAPTURED: 0 · TOTAL: 0</span>
         </div>
+        <div class="human-exposed-banner" id="human-exposed-banner" hidden>
+          👁 HAND EXPOSED — every AI player can see your cards for the rest of the Mission
+        </div>
         <div class="hand-row" id="human-hand"></div>
       </div>
     </div>
 
     <div class="comms-panel" id="comms-panel">
-      <div class="comms-head"><span><span class="live-dot"></span>INTERCEPTED COMMS</span><span id="comms-mission-tag" class="mono"></span></div>
+      <div class="comms-head">
+        <span><span class="live-dot"></span>INTERCEPTED COMMS</span>
+        <span class="comms-head-right">
+          <button type="button" id="btn-export-log" class="comms-export-btn" title="Download the current game log as a JSON file for later analysis.">⇩ Export</button>
+          <span id="comms-mission-tag" class="mono"></span>
+        </span>
+      </div>
       <div class="comms-feed" id="comms-feed"></div>
     </div>
   </div>

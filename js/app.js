@@ -53,6 +53,7 @@
       [...countRow.children].forEach(c => c.classList.remove('selected'));
       b.classList.add('selected');
       document.getElementById('blurb-missions').textContent = (n === 1 ? 'one Mission' : n + ' Missions total');
+      document.getElementById('setup-blurb').removeAttribute('hidden');
       document.getElementById('btn-start').disabled = false;
     });
     countRow.appendChild(b);

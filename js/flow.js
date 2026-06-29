@@ -6,7 +6,9 @@
  *
  * v2.42 changes:
  *   - Scoring reordered: 1-Orac, 2-Zen+Lib+AsteroidField, 3-Gauda Prime,
- *     4-Mutoid, 5-IMIPAK, 7-Psycho-Strategist's Gambit
+ *   - Scoring sequence (v2.44 rulebook): 1-Orac, 2-Zen+Liberator+Asteroid,
+ *     3-Gauda Prime, 4-Mutoid, 5-IMIPAK, 6-Dayna Mellanby (conditional),
+ *     7-Totals, 8-Psycho-Strategist's Gambit
  *   - Dayna Mellanby (10♣): conditional +10 (Star One battle must have occurred)
  *   - IMIPAK / Orac: target filter uses isPersonCard (Hearts, Spades, Dayna, Vila)
  *   - Vila leads: capturer declares the suit that must be followed
@@ -93,14 +95,49 @@
       UI.setCenterMsg('The Andromedan tide breaks through. No scoring this Mission.');
       UI.logAndromedan('☠ THE ANDROMEDANS BREAK THROUGH — Mission ends. No one scores.');
       await UI.showInfoBanner('Mission Lost', 'The Andromedan wave could not be repelled. This Mission scores nothing for anyone.');
+      recordMissionSummary(null);
     } else if (S.M.missionResult === 'vilaBluff'){
       UI.setCenterMsg("Vila's Galactic Bluff succeeds. The Andromedans stand down. No scoring this Mission.");
       UI.logAndromedan("🃏 VILA'S GALACTIC BLUFF — The Andromedans are talked out of it entirely. Nobody scores.");
       await UI.showInfoBanner("Vila's Galactic Bluff", "Vila apparently convinced the Andromedan fleet they've attacked entirely the wrong galaxy. The Mission ends — nobody scores, nobody wins, nobody quite knows what just happened.");
+      recordMissionSummary(null);
     } else {
       const breakdown = await scoreMission();
+      recordMissionSummary(breakdown);
       await UI.showScoringModal(breakdown);
     }
+  }
+
+  /** Push a structured per-mission record into G.missionLog. Called from
+   *  runMission once outcome and scoring are settled. */
+  function recordMissionSummary(breakdown){
+    const G = S.G, M = S.M;
+    if (!G.missionLog) G.missionLog = [];
+    const C = R.card;
+    G.missionLog.push({
+      missionIndex:      G.missionIndex,
+      systemName:        G.systemName || null,
+      dealerIdx:         M.dealerIdx,
+      reserveSizeAtDeal: (Array.isArray(M.tricks) && M.tricks.length === 0) ? null : undefined,
+      result:            M.missionResult,
+      starOneBattleOccurred: !!M.starOneBattleOccurred,
+      fullCrewClaimed:   !!M.fullCrewClaimed,
+      reserveDestroyed:  !!M.reserveDestroyed,
+      invasionTriggered: !!M.invasionActive || (M.missionResult === 'andromedan' || M.missionResult === 'vilaBluff'),
+      tricks:            Array.isArray(M.tricks) ? M.tricks.slice() : [],
+      capturePiles: G.players.map(p => ({
+        playerIdx: p.idx,
+        name:      p.name,
+        cards: p.pile.map(c => ({
+          suit: c.suit, rank: c.rank, label: C.cardLabel(c), points: C.basePoints(c),
+          cancelled: !!c._cancelled, assassinated: !!c._assassinated, daynaBonus: !!c._daynaBonus
+        }))
+      })),
+      missionScores:     breakdown ? breakdown.missionTotals : null,
+      missionNotes:      breakdown ? (breakdown.notes || []) : [],
+      totalsAfter:       G.totals.slice(),
+      endedAt:           new Date().toISOString()
+    });
   }
 
   /* ----- normal trick ----- */
@@ -153,6 +190,13 @@
 
   async function resolveTrickEnd(trick, winnerIdx, isInvasionWave){
     const G = S.G, M = S.M;
+    /* Record this completed trick for export. We snapshot the plays now,
+       before pile mutation; winner-determined state mutations happen below.
+       Guarded — the headless tournament harness ships a UI shim that may
+       not include this serializer. */
+    if (Array.isArray(M.tricks) && typeof UI.serializeTrick === 'function'){
+      M.tricks.push(UI.serializeTrick(trick, M.ledSuit, winnerIdx, !!isInvasionWave));
+    }
     if (winnerIdx === 'ANDROMEDAN'){
       M.missionOver = true; M.missionResult = 'andromedan';
       UI.setCenterMsg('The Andromedan card takes the trick!');
@@ -200,18 +244,29 @@
     }
 
     /* Full Crew check (global, once per mission) — Gan (10♥) does NOT count */
+    let fullCrewJustFired = false;
     if (!M.fullCrewClaimed && M.reserve.length > 0){
       if (C.pileHas(winner.pile, 'H', 'A') && winner.pile.some(C.isHeartFace)){
+        fullCrewJustFired = true;
         await resolveFullCrew(winner);
         if (M.missionOver) return;
       }
     }
 
-    /* Star One ends the mission — unless Liberator intercepted it */
+    /* Star One ends the mission — unless intercepted.
+       Two interceptions are possible:
+         (a) Liberator (Q♦) captured in the same trick — classic intercept.
+         (b) Full Crew fired this same trick. The elite team locks Star One
+             down before the detonation propagates. */
     if (hasStarOne){
       if (hasLiberator){
-        UI.logSystem('🚀 LIBERATOR INTERCEPTS: Star One detonation cancelled. The Mission continues.');
+        UI.logSystem('🚀 ' + winner.name + ' captures the Liberator (Q♦) in the same trick as Star One — the Liberator intercepts the detonation, Mission continues.');
         UI.setCenterMsg('The Liberator intercepts Star One. Mission continues!');
+        M.starOneBattleOccurred = true; // counts for Dayna
+        await E.sleep(900);
+      } else if (fullCrewJustFired){
+        UI.logSystem('★ ' + winner.name + ' completes the Full Crew (Avon + a Hearts face) in the same trick as Star One — the crew locks Star One down, Mission continues. The Ace of Clubs scores normally as −5.');
+        UI.setCenterMsg('The Full Crew suppresses Star One. Mission continues!');
         M.starOneBattleOccurred = true; // counts for Dayna
         await E.sleep(900);
       } else {
@@ -369,9 +424,14 @@
     const M = S.M;
     if (M.reserve.length === 0){ M.fullCrewClaimed = true; return; }
     M.starOneBattleOccurred = true; // Full Crew trigger counts for Dayna
-    UI.logSystem('★ FULL CREW: ' + E.subj(winner.name, 'has') + ' Avon and a Liberator officer together. The Reserve is revealed!');
+    UI.logSystem('★ ' + winner.name + ' completes the Full Crew (Avon + a Liberator officer) — the Reserve is revealed!');
     M.fullCrewClaimed = true;
     const revealed = M.reserve.slice();
+    /* Per v2.44 rules: ALL Reserve cards must be revealed face-up to ALL
+       players before the winner makes their selection. Public log entry
+       documents the full Reserve contents so every player has equal
+       information. */
+    UI.logSystem('   Reserve revealed (' + revealed.length + ' cards): ' + revealed.map(C.cardLabel).join(' ') + '.');
     let taken = [];
     if (winner.isHuman){
       const sel = await UI.askCards('Full Crew — Reserve Revealed',
@@ -385,7 +445,14 @@
     winner.pile.push(...taken);
     M.reserve = [];
     M.invasionActive = false;
-    UI.logSystem('Full Crew: ' + E.subj(winner.name, 'takes') + ' ' + (taken.length ? taken.map(C.cardLabel).join(' ') : 'nothing') + '. Remaining Reserve cards are locked away for good.');
+    UI.logSystem(winner.name + ' (Full Crew) takes ' + (taken.length ? taken.map(C.cardLabel).join(' ') : 'nothing from the Reserve') + '. Remaining Reserve cards are locked away for good.');
+    /* If Star One (A♣) was among the Reserve cards just claimed, its
+       Mission-ending power is suppressed — it never entered play, it was
+       lifted silently out of the Reserve by the Full Crew. It still scores
+       its −5, but the game does not end. */
+    if (taken.some(c => c.suit === 'C' && c.rank === 'A')){
+      UI.logSystem('★ ' + winner.name + ' takes Star One (A♣) silently from the Reserve — its detonation never fires, since the card never entered play. It scores normally as −5; the Mission continues.');
+    }
     UI.renderAll(); await E.sleep(300);
   }
 
@@ -403,7 +470,7 @@
       const p = G.players[pIdx];
       if (C.pileHas(p.pile, 'D', 'A') && !p.oracUsed){
         await POW.powerOracCancel(p);
-        if (p.oracUsed) notes.push('Orac: ' + E.subj(p.name, 'cancels') + ' a person card\'s value this Mission.');
+        if (p.oracUsed) notes.push(p.name + ' uses Orac (A♦) to cancel a person card this Mission. (See comms log for which card.)');
       }
     }
 
@@ -413,7 +480,7 @@
         const asteroidField = p.pile.find(c => c.suit === 'C' && c.rank === 'Q');
         if (asteroidField && !asteroidField._cancelled){
           asteroidField._cancelled = true;
-          notes.push('Zen + Liberator: Asteroid Field in ' + E.possessiveOf(p.name) + ' captured cards is negated — scores 0.');
+          notes.push(p.name + ' holds Zen (K♦) + Liberator (Q♦) + Asteroid Field (Q♣) — the Liberator knows these rocks, the Asteroid Field is negated and scores 0.');
         }
       }
     }
@@ -429,7 +496,7 @@
       for (const p of G.players){
         for (const c of p.pile){ if (C.isHeart(c)) c._cancelled = true; }
       }
-      notes.push('Gauda Prime triggered by ' + gaudaBy.join(', ') + ' — ALL Hearts in ALL piles are worth 0.');
+      notes.push(gaudaBy.join(' + ') + (gaudaBy.length > 1 ? ' both hold' : ' holds') + ' an all-prime numbered pile — Gauda Prime triggers, every Heart in every pile scores 0 this Mission.');
     }
 
     /* Step 4 — Mutoid: mandatory Heart devour from own pile */
@@ -439,32 +506,67 @@
         if (hearts.length > 0){
           const alreadyDead = hearts.find(c => c._cancelled);
           if (alreadyDead){
-            notes.push('Mutoid in ' + E.possessiveOf(p.name) + ' captured cards feeds on the already-cancelled ' + C.cardLabel(alreadyDead) + ' — no further effect.');
+            notes.push(p.name + ' holds the Mutoid (J♠) — she feeds on the already-cancelled ' + C.cardLabel(alreadyDead) + ' in their pile; no further effect.');
           } else {
             const target = hearts.slice().sort((a, b) => C.basePoints(a) - C.basePoints(b))[0];
             target._cancelled = true;
-            notes.push('Mutoid in ' + E.possessiveOf(p.name) + ' captured cards drains ' + C.cardLabel(target) + ' (the lowest-value Heart) for blood serum — now worth 0.');
+            notes.push(p.name + ' holds the Mutoid (J♠) — she drains ' + C.cardLabel(target) + ' from ' + E.possessiveOf(p.name) + ' Hearts for blood serum (the lowest-value Heart), now scoring 0.');
           }
         }
       }
     }
 
-    /* Step 5 — IMIPAK: paired with another 10, assassinates a person card */
+    /* Step 5 — IMIPAK: paired with another 10, assassinates a person card.
+       Per v2.44 rulebook: "that player may choose to assassinate one card of
+       their choice from any player's Capture Pile, including their own".
+       The holder picks. Human gets a picker (with owner badges); AI uses
+       the same swing-maximizing heuristic as Orac. */
     for (const pIdx of order){
       const p = G.players[pIdx];
       const hasImipak = C.pileHas(p.pile, 'D', '10');
       const otherTens = p.pile.filter(c => !C.isJoker(c) && c.rank === '10' && c.suit !== 'D' && !c._assassinated);
-      if (hasImipak && otherTens.length > 0){
-        // Valid targets: Hearts, Spades, Dayna (10♣), Vila — using isPersonCard
-        const pool = [];
-        G.players.forEach(pp => pp.pile.forEach(c => {
-          if (!c._cancelled && !c._assassinated && C.isPersonCard(c)) pool.push({ card:c, owner:pp });
+      if (!hasImipak || otherTens.length === 0) continue;
+
+      const pool = [];
+      G.players.forEach(pp => pp.pile.forEach(c => {
+        if (!c._cancelled && !c._assassinated && C.isPersonCard(c)) pool.push({ card:c, owner:pp });
+      }));
+      if (pool.length === 0) continue;
+
+      let pick;
+      if (p.isHuman){
+        const labels = pool.map(({owner}) => ({
+          text: (owner.idx === p.idx) ? 'YOUR pile' : owner.name + "'s pile",
+          own:  (owner.idx === p.idx)
         }));
-        if (pool.length > 0){
-          const pick = pool.sort((a, b) => C.basePoints(b.card) - C.basePoints(a.card))[0];
-          pick.card._assassinated = true;
-          notes.push('IMIPAK: ' + E.subj(p.name, 'assassinates') + ' ' + C.cardLabel(pick.card) + ' in ' + E.possessiveOf(pick.owner.name) + ' captured cards — worth 0.');
+        const cards = pool.map(x => x.card);
+        const sel = await UI.askCards('IMIPAK — Assassinate a Person Card',
+          "IMIPAK and another 10 are both in your captured cards. Assassinate one person card (Hearts, Spades, Dayna, or Vila) from any player's captured cards — it scores 0 this Mission. Choose one, or skip.",
+          cards, { allowSkip:true, skipLabel:'Skip — do not use IMIPAK', ownerLabels: labels });
+        if (sel.length){
+          const chosen = sel[0];
+          pick = pool.find(x => x.card === chosen) || pool.find(x => x.card.id === chosen.id);
         }
+      } else {
+        /* AI: maximize swing in own favour. -basePoints for own pile, +basePoints for opponents. */
+        let best = null, bestSwing = 0;
+        for (const opt of pool){
+          const bp = C.basePoints(opt.card);
+          const swing = (opt.owner.idx === p.idx) ? -bp : bp;
+          if (swing > bestSwing){ best = opt; bestSwing = swing; }
+        }
+        pick = best;
+      }
+
+      if (pick){
+        pick.card._assassinated = true;
+        const where = (pick.owner.idx === p.idx) ? 'their own captured cards'
+                                                 : E.possessiveOf(pick.owner.name) + ' captured cards';
+        /* Name the specific "other 10" that paired with IMIPAK so it's clear
+           what triggered the power. Prefer a non-Dayna 10 if present (more
+           thematic — Gan or Anna Grant), but any non-IMIPAK 10 in the pile works. */
+        const trigger = otherTens[0];
+        notes.push(p.name + ' uses IMIPAK (10♦) + ' + C.cardLabel(trigger) + ' (' + C.cardName(trigger) + ') to assassinate ' + C.cardLabel(pick.card) + ' (' + C.cardName(pick.card) + ') in ' + where + ' — scores 0.');
       }
     }
 
@@ -474,14 +576,16 @@
       if (dayna && !dayna._cancelled && !dayna._assassinated){
         if (battleOccurred){
           dayna._daynaBonus = true;
-          notes.push('Dayna Mellanby in ' + E.possessiveOf(p.name) + ' captured cards: Star One battle occurred — scores +10.');
+          notes.push(p.name + ' holds Dayna Mellanby (10♣) — the Star One battle occurred this Mission, so she scores +10.');
         } else {
           dayna._daynaSuppressed = true;
-          notes.push('Dayna Mellanby in ' + E.possessiveOf(p.name) + ' captured cards: no Star One battle this Mission — scores 0.');
+          notes.push(p.name + ' holds Dayna Mellanby (10♣) — no Star One battle this Mission, so she scores 0.');
         }
       }
     }
 
+    /* Step 7 — Totals (implicit): each player sums up their non-cancelled
+       card values below. Dayna uses _daynaBonus instead of basePoints. */
     /* Totals */
     const stepTotals = {};
     for (const p of G.players){
@@ -498,11 +602,11 @@
       stepTotals[p.idx] = sum;
     }
 
-    /* Step 7 — Psycho-Strategist's Gambit: K♣ + A♠ in same pile flips sign */
+    /* Step 8 — Psycho-Strategist's Gambit: K♣ + A♠ in same pile flips sign */
     for (const p of G.players){
       if (C.pileHas(p.pile, 'C', 'K') && C.pileHas(p.pile, 'S', 'A')){
         stepTotals[p.idx] = -stepTotals[p.idx];
-        notes.push("Psycho-Strategist's Gambit: " + E.possessiveOf(p.name) + ' total is reversed to ' + stepTotals[p.idx] + '.');
+        notes.push(p.name + " holds Carnell (K♣) + Servalan (A♠) — the Psycho-Strategist's Gambit reverses their total to " + stepTotals[p.idx] + '.');
       }
     }
 

@@ -1,0 +1,256 @@
+/* Rebellion replay viewer — layered on top of app.css (which provides the
+ * core color tokens, .card styling, etc.). This file owns the replay-only
+ * chrome: loader panel, control bar, trick visualization, scoreboard. */
+
+body{
+  padding-bottom:24px;
+}
+
+/* ============== Top bar ============== */
+.replay-top{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 20px;background:var(--panel2);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:20;
+}
+.replay-top-left{display:flex;align-items:center;gap:18px;}
+.replay-back{
+  color:var(--teal);text-decoration:none;font-family:monospace;font-size:12px;
+  padding:5px 10px;border:1px solid var(--teal);border-radius:5px;
+}
+.replay-back:hover{background:var(--teal);color:#06120f;}
+.replay-title{font-weight:800;letter-spacing:0.08em;font-size:14px;color:var(--text);}
+.replay-top-right .version{
+  font-family:monospace;font-size:10px;color:var(--muted);letter-spacing:0.06em;
+}
+
+/* ============== Loader panel ============== */
+.loader-panel{
+  max-width:880px;margin:32px auto;padding:28px 32px;
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;
+}
+.loader-panel h2{
+  font-size:22px;color:var(--teal);margin:0 0 8px 0;letter-spacing:0.02em;
+}
+.loader-blurb{font-size:14px;color:var(--muted);line-height:1.6;margin:0 0 24px 0;}
+.loader-blurb code{background:var(--panel3);padding:2px 6px;border-radius:3px;font-size:12px;}
+
+.loader-row{display:flex;gap:24px;align-items:stretch;}
+.loader-method{
+  flex:1;display:flex;flex-direction:column;gap:10px;
+  background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:18px;
+}
+.loader-method-head{
+  font-family:monospace;font-size:12px;color:var(--teal);letter-spacing:0.06em;
+  display:flex;align-items:center;gap:8px;margin-bottom:4px;
+}
+.loader-num{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:50%;background:var(--teal);color:#06120f;
+  font-weight:800;font-size:12px;
+}
+.loader-divider{
+  align-self:center;color:var(--dim);font-family:monospace;font-size:11px;letter-spacing:0.1em;
+  padding:0 4px;
+}
+.loader-method input[type="file"]{
+  background:var(--panel3);border:1px solid var(--border);border-radius:5px;padding:9px;color:var(--text);
+  font-family:inherit;font-size:13px;cursor:pointer;
+}
+.loader-method textarea{
+  background:var(--panel3);border:1px solid var(--border);border-radius:5px;padding:10px;
+  color:var(--text);font-family:ui-monospace,Consolas,Menlo,monospace;font-size:11px;
+  width:100%;resize:vertical;
+}
+.loader-hint{font-size:11px;color:var(--dim);}
+
+.loader-error{
+  margin-top:16px;padding:12px 16px;border:1px solid var(--bad);border-radius:6px;
+  background:rgba(229,86,79,0.08);color:var(--bad);font-size:13px;line-height:1.5;
+}
+.loader-error[hidden]{display:none;}
+
+@media (max-width:700px){
+  .loader-row{flex-direction:column;gap:14px;}
+  .loader-divider{padding:0;}
+}
+
+/* ============== Replay view layout ============== */
+.replay-view{max-width:1300px;margin:18px auto;padding:0 18px;}
+.replay-view[hidden]{display:none;}
+
+.replay-game-info{
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;
+  padding:14px 18px;margin-bottom:14px;
+  display:flex;flex-wrap:wrap;gap:14px 28px;align-items:baseline;font-size:13px;
+}
+.replay-game-info .field{color:var(--muted);}
+.replay-game-info .field b{color:var(--text);font-weight:600;margin-left:6px;}
+.replay-game-info .system{color:var(--teal);font-style:italic;font-weight:600;}
+
+/* Controls bar */
+.replay-controls{
+  background:var(--panel2);border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px;margin-bottom:14px;
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  position:sticky;top:54px;z-index:10;
+}
+.replay-controls button{
+  background:var(--panel3);border:1px solid var(--border);color:var(--text);
+  padding:7px 14px;border-radius:5px;cursor:pointer;font-family:monospace;font-size:13px;
+  transition:filter .15s ease;
+}
+.replay-controls button:hover{filter:brightness(1.25);}
+.replay-controls button.ghost{border-style:dashed;color:var(--muted);}
+.replay-controls button:disabled{opacity:0.35;cursor:not-allowed;}
+.replay-controls .replay-pos{
+  font-family:monospace;font-size:12px;color:var(--muted);margin-left:8px;
+  padding:0 8px;border-left:1px solid var(--border);
+}
+.replay-controls .replay-speed{
+  font-family:monospace;font-size:12px;color:var(--muted);
+  display:flex;align-items:center;gap:6px;margin-left:auto;
+}
+.replay-controls select{
+  background:var(--panel3);border:1px solid var(--border);color:var(--text);
+  padding:5px 8px;border-radius:4px;font-family:inherit;font-size:12px;
+}
+
+/* Main playback layout */
+.replay-main{
+  display:grid;grid-template-columns:1fr 380px;gap:14px;
+}
+@media (max-width:900px){
+  .replay-main{grid-template-columns:1fr;}
+}
+
+/* Trick area */
+.replay-trick-area{
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;
+  padding:18px;min-height:340px;
+}
+.replay-event-banner{
+  text-align:center;margin-bottom:14px;
+  padding:10px 14px;border-radius:6px;font-size:14px;font-weight:600;
+  background:var(--panel3);color:var(--text);
+}
+.replay-event-banner.mission-start{
+  background:linear-gradient(90deg, rgba(63,193,181,0.15), rgba(63,193,181,0.04));
+  border:1px solid var(--teal);color:var(--teal);
+}
+.replay-event-banner.mission-end{
+  background:linear-gradient(90deg, rgba(232,196,104,0.15), rgba(232,196,104,0.04));
+  border:1px solid var(--gold);color:var(--gold);
+}
+.replay-event-banner.game-end{
+  background:linear-gradient(90deg, rgba(95,208,137,0.18), rgba(95,208,137,0.04));
+  border:1px solid var(--good);color:var(--good);font-size:16px;
+}
+.replay-event-banner.andromedan{
+  background:linear-gradient(90deg, rgba(0,230,118,0.12), rgba(0,230,118,0.04));
+  border:1px solid var(--andromedan);color:var(--andromedan);
+  text-shadow:0 0 6px var(--andromedan-dim);
+}
+
+.replay-trick{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:14px;align-items:flex-end;
+  padding:10px 0;min-height:130px;
+}
+.replay-trick .trick-slot{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  transition:transform .25s ease;
+}
+.replay-trick .trick-slot.winner{
+  transform:translateY(-12px);
+}
+.replay-trick .trick-slot.winner .trick-who{
+  box-shadow:0 0 10px var(--gold);
+}
+.replay-trick .trick-who{
+  font-family:monospace;font-size:11px;font-weight:700;
+  padding:3px 9px;border-radius:4px;letter-spacing:0.04em;
+  background:var(--panel3);color:var(--text);
+}
+.replay-trick .trick-who.andromedan{
+  background:var(--andromedan);color:#000;box-shadow:0 0 8px var(--andromedan);
+}
+.replay-trick-meta{
+  margin-top:14px;text-align:center;font-size:12px;color:var(--muted);
+  font-family:monospace;letter-spacing:0.03em;
+}
+.replay-trick-meta b{color:var(--text);}
+
+/* Side panel */
+.replay-aside{display:flex;flex-direction:column;gap:14px;}
+
+.replay-scoreboard{
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;
+}
+.replay-scoreboard h3{
+  margin:0 0 10px 0;font-size:11px;font-family:monospace;letter-spacing:0.1em;
+  color:var(--teal);font-weight:700;
+}
+.replay-scoreboard table{width:100%;border-collapse:collapse;font-size:13px;}
+.replay-scoreboard td{padding:5px 6px;border-bottom:1px solid var(--border);}
+.replay-scoreboard tr:last-child td{border-bottom:none;}
+.replay-scoreboard td.score{text-align:right;font-family:monospace;font-weight:700;}
+.replay-scoreboard td.score.pos{color:var(--good);}
+.replay-scoreboard td.score.neg{color:var(--bad);}
+.replay-scoreboard tr.leader td{background:rgba(232,196,104,0.06);}
+.replay-scoreboard .leader-mark{color:var(--gold);}
+
+.replay-piles{
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;
+}
+.replay-piles h3{
+  margin:0 0 10px 0;font-size:11px;font-family:monospace;letter-spacing:0.1em;
+  color:var(--teal);font-weight:700;
+}
+.replay-pile-row{
+  display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;
+}
+.replay-pile-name{
+  min-width:60px;font-size:11px;font-family:monospace;color:var(--muted);
+}
+.replay-pile-cards{display:flex;gap:2px;flex-wrap:wrap;}
+.replay-pile-mini{
+  display:inline-block;padding:1px 4px;border-radius:3px;font-size:10px;font-family:monospace;
+  font-weight:700;background:#f3efe4;color:#16181c;border:1px solid rgba(0,0,0,0.3);
+}
+.replay-pile-mini.suit-H{color:#c8281e;}
+.replay-pile-mini.suit-D{color:#d27416;}
+.replay-pile-mini.suit-C{color:#58606a;}
+.replay-pile-mini.suit-S{color:#1d3a6b;}
+.replay-pile-mini.suit-JK{background:#fff3d6;color:#9c7a14;}
+.replay-pile-mini.cancelled{opacity:0.35;text-decoration:line-through;}
+
+/* Comms */
+.replay-comms{
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;
+  display:flex;flex-direction:column;max-height:320px;
+}
+.replay-comms-head{
+  padding:10px 14px;border-bottom:1px solid var(--border);font-family:monospace;font-size:11px;
+  color:var(--teal);letter-spacing:0.1em;display:flex;justify-content:space-between;
+}
+.replay-comms-pos{color:var(--muted);font-weight:normal;}
+.replay-comms-feed{
+  flex:1;overflow-y:auto;padding:10px;font-family:monospace;font-size:11px;line-height:1.5;
+}
+.replay-comms-feed .log-line{margin-bottom:7px;}
+.replay-comms-feed .log-line.system{color:var(--dim);font-style:italic;}
+.replay-comms-feed .log-line.andromedan{color:var(--andromedan);font-style:italic;}
+.replay-comms-feed .log-line.chat{color:var(--text);}
+.replay-comms-feed .log-line .speaker{color:var(--teal);font-weight:700;margin-right:4px;}
+
+/* Drag-and-drop overlay */
+#drop-overlay{
+  position:fixed;inset:0;z-index:1000;background:rgba(4,6,8,0.85);
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;
+}
+#drop-overlay[hidden]{display:none;}
+.drop-overlay-inner{
+  padding:32px 56px;border:2px dashed var(--teal);border-radius:14px;
+  color:var(--teal);font-family:monospace;font-size:22px;letter-spacing:0.08em;
+  background:var(--panel2);
+}

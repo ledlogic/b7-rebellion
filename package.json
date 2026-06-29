@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "docs": "jsdoc -c jsdoc.json",
-    "docs:open": "jsdoc -c jsdoc.json && open docs/index.html"
+    "docs:open": "jsdoc -c jsdoc.json && open docs/index.html",
+    "tournament": "node tools/tournament.js"
   },
   "devDependencies": {
     "jsdoc": "^4.0.0"

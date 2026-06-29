@@ -118,25 +118,57 @@
     UI.renderAll(); await E.sleep(250);
   }
 
-  /** Orac scoring power: called from scoreMission (Step 1) if the holder wants to cancel a person card. */
+  /** Orac scoring power: called from scoreMission (Step 1) if the holder wants to cancel a person card.
+   *  Per v2.44 rulebook: target is any person card (Hearts, Spades, Dayna 10♣, or Vila) from ANY
+   *  player's Capture Pile, including the holder's own. */
   async function powerOracCancel(winner){
     if (winner.oracUsed) return;
-    // Valid targets: any Hearts card, any Spades card, Dayna Mellanby (10♣), or Vila (Joker)
-    const eligible = winner.pile.filter(c => C.isPersonCard(c) && !c._cancelled);
-    if (eligible.length === 0) return;
+    const G = S.G;
+    /* Pool: every eligible card across ALL players' captured piles, with owner. */
+    const pool = [];
+    for (const p of G.players){
+      for (const c of p.pile){
+        if (!c._cancelled && !c._assassinated && C.isPersonCard(c)){
+          pool.push({ card: c, owner: p });
+        }
+      }
+    }
+    if (pool.length === 0) return;
+
     let pick;
     if (winner.isHuman){
+      const labels = pool.map(({owner}) => ({
+        text: (owner.idx === winner.idx) ? 'YOUR pile' : owner.name + "'s pile",
+        own:  (owner.idx === winner.idx)
+      }));
+      const cards = pool.map(p => p.card);
       const sel = await UI.askCards('Orac — Cancel a Card Value',
-        'Orac wins an argument nobody in the galaxy can defeat. Cancel the point value of one person card (Hearts, Spades, Dayna, or Vila) from any player\'s captured cards. Choose one, or skip.',
-        eligible, { allowSkip:true, skipLabel:'Skip' });
-      pick = sel[0];
+        "Orac wins an argument nobody in the galaxy can defeat. Cancel the point value of one person card (Hearts, Spades, Dayna, or Vila) from any player's captured cards. Choose one, or skip.",
+        cards, { allowSkip:true, skipLabel:'Skip — do not use Orac', ownerLabels: labels });
+      if (sel.length){
+        const cardChosen = sel[0];
+        pick = pool.find(p => p.card === cardChosen) || pool.find(p => p.card.id === cardChosen.id);
+      }
     } else {
-      pick = eligible.slice().sort((a, b) => C.basePoints(a) - C.basePoints(b))[0];
+      /* AI: maximize swing in the winner's favor.
+         - Cancelling a card in own pile gives swing = -basePoints (cancelling a -10 helps by 10)
+         - Cancelling a card in opponent's pile gives swing = +basePoints (cancelling their +10 hurts them by 10)
+         Skip only if no positive-swing option exists. */
+      let best = null, bestSwing = 0;
+      for (const opt of pool){
+        const bp = C.basePoints(opt.card);
+        const swing = (opt.owner.idx === winner.idx) ? -bp : bp;
+        if (swing > bestSwing){ best = opt; bestSwing = swing; }
+      }
+      pick = best;
     }
+
     if (pick){
-      pick._cancelled = true;
+      pick.card._cancelled = true;
       winner.oracUsed = true;
-      UI.logSystem('Orac: ' + E.subj(winner.name, 'cancels') + ' the value of ' + C.cardLabel(pick) + ' (' + C.cardName(pick) + ') — scores 0 this Mission.');
+      const where = (pick.owner.idx === winner.idx) ? 'their own captured cards'
+                                                    : E.possessiveOf(pick.owner.name) + ' captured cards';
+      UI.logSystem(winner.name + ' uses Orac (A♦) to cancel ' + C.cardLabel(pick.card) + ' (' + C.cardName(pick.card) + ') in ' + where + ' — scores 0 this Mission.');
       if (!winner.isHuman) UI.say(winner, 'power');
     }
     UI.renderAll(); await E.sleep(250);
@@ -194,7 +226,7 @@
     winner.pile.push(...taken);
     M.invasionActive = false;
     M.starOneBattleOccurred = true; // Travis seizing the Reserve counts for Dayna
-    UI.logSystem('⚡ TRAVIS: ' + E.subj(winner.name, 'seizes') + ' the entire remaining Reserve (' + taken.length + ' cards): ' + taken.map(C.cardLabel).join(' ') + '.');
+    UI.logSystem('⚡ ' + winner.name + ' captures Travis (K♠) — Travis seizes the entire remaining Reserve (' + taken.length + ' cards) into their pile: ' + taken.map(C.cardLabel).join(' ') + '.');
     if (!winner.isHuman) UI.say(winner, 'reserve');
     else await UI.askInfo('Travis — Reserve Seized', 'You captured Travis. The entire remaining Reserve is seized into your captured cards.', taken);
     UI.renderAll(); await E.sleep(300);

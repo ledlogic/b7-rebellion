@@ -33,38 +33,63 @@
   }
 
   /* ============================================================ Logging ============================================================ */
+  /** Push a structured comms entry into G.commsLog so the export can replay
+   *  the conversation without DOM-scraping. Safe to call before G exists. */
+  function recordComms(type, text, speaker){
+    try {
+      const G = R.state && R.state.G;
+      if (!G) return;
+      if (!G.commsLog) G.commsLog = [];
+      const M = R.state.M;
+      G.commsLog.push({
+        type,
+        text,
+        speaker: speaker || null,
+        missionIndex: G.missionIndex,
+        trickNumber: M ? M.trickNumber : null,
+        ts: new Date().toISOString()
+      });
+    } catch (e){ /* never throw out of a logger */ }
+  }
+
   function logSystem(text){
     const feed = document.getElementById('comms-feed');
-    if (!feed) return;
-    const div = document.createElement('div');
-    div.className = 'log-line system';
-    div.innerHTML = '<span class="marker">▸</span> ' + text;
-    feed.appendChild(div);
-    feed.scrollTop = feed.scrollHeight;
+    if (feed){
+      const div = document.createElement('div');
+      div.className = 'log-line system';
+      div.innerHTML = '<span class="marker">▸</span> ' + text;
+      feed.appendChild(div);
+      feed.scrollTop = feed.scrollHeight;
+    }
+    recordComms('system', text, null);
   }
 
   /** Log an Andromedan invasion event in green. */
   function logAndromedan(text){
     const feed = document.getElementById('comms-feed');
-    if (!feed) return;
-    const div = document.createElement('div');
-    div.className = 'log-line andromedan';
-    div.innerHTML = '<span class="marker">▸</span> ' + text;
-    feed.appendChild(div);
-    feed.scrollTop = feed.scrollHeight;
+    if (feed){
+      const div = document.createElement('div');
+      div.className = 'log-line andromedan';
+      div.innerHTML = '<span class="marker">▸</span> ' + text;
+      feed.appendChild(div);
+      feed.scrollTop = feed.scrollHeight;
+    }
+    recordComms('andromedan', text, null);
   }
   function logChat(player, text){
     const feed = document.getElementById('comms-feed');
-    if (!feed) return;
-    const div = document.createElement('div');
-    div.className = 'log-line';
-    const c = player.color;
-    const tagText = player.isHuman ? 'YOU' : player.persona.tag;
-    const tooltip = player.isHuman ? 'You' : (player.persona.name + ' — ' + player.persona.role);
-    div.innerHTML = '<span class="tag" title="' + escapeAttr(tooltip) + '" style="background:' + c + '22;color:' + c + ';border:1px solid ' + c + '55;cursor:help;">' +
-                    tagText + '</span>' + escapeHtml(text);
-    feed.appendChild(div);
-    feed.scrollTop = feed.scrollHeight;
+    if (feed){
+      const div = document.createElement('div');
+      div.className = 'log-line';
+      const c = player.color;
+      const tagText = player.isHuman ? 'YOU' : player.persona.tag;
+      const tooltip = player.isHuman ? 'You' : (player.persona.name + ' — ' + player.persona.role);
+      div.innerHTML = '<span class="tag" title="' + escapeAttr(tooltip) + '" style="background:' + c + '22;color:' + c + ';border:1px solid ' + c + '55;cursor:help;">' +
+                      tagText + '</span>' + escapeHtml(text);
+      feed.appendChild(div);
+      feed.scrollTop = feed.scrollHeight;
+    }
+    recordComms('chat', text, player.isHuman ? 'YOU' : (player.persona ? player.persona.name : player.name));
   }
   function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
   function escapeAttr(s){ return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
@@ -232,6 +257,9 @@
     const allowSkip = opts.allowSkip !== false;
     const skipLabel = opts.skipLabel || 'Skip';
     const confirmLabel = opts.confirmLabel || 'Confirm';
+    /* Optional per-card prefix labels (e.g. "Korben's pile") rendered above
+       each card chip. Used by Orac to disambiguate which pile a card sits in. */
+    const ownerLabels = Array.isArray(opts.ownerLabels) ? opts.ownerLabels : null;
     return new Promise(resolve => {
       modalBox.innerHTML = '';
       const h = document.createElement('h3'); h.textContent = title; modalBox.appendChild(h);
@@ -240,6 +268,17 @@
       const selected = new Set();
       cards.forEach((c, i) => {
         const wrap = document.createElement('div'); wrap.className = 'modal-card-opt';
+        if (ownerLabels && ownerLabels[i]){
+          const ol = document.createElement('div'); ol.className = 'owner-lbl';
+          const entry = ownerLabels[i];
+          if (typeof entry === 'object' && entry !== null){
+            ol.textContent = entry.text || '';
+            if (entry.own) ol.classList.add('own');
+          } else {
+            ol.textContent = String(entry);
+          }
+          wrap.appendChild(ol);
+        }
         wrap.appendChild(renderCardEl(c, true));
         const lbl = document.createElement('div'); lbl.className = 'lbl';
         lbl.textContent = C.cardName(c) + ' (' + (C.basePoints(c) >= 0 ? '+' : '') + C.basePoints(c) + ')';
@@ -428,17 +467,12 @@
     const human = G.players[0];
 
     /* Hand-exposed indicator. Servalan's effect (revealHand power) sets
-       human.exposed = true for the rest of the mission. We add a prominent
-       tag in the human-head; renderHumanHand re-runs every renderAll, so
-       the tag stays present until initMissionState wipes the flag. */
-    const headEl = document.querySelector('.human-head');
-    const oldTag = headEl ? headEl.querySelector('.human-exposed-tag') : null;
-    if (oldTag) oldTag.remove();
-    if (human.exposed && headEl){
-      const tag = document.createElement('span');
-      tag.className = 'human-exposed-tag';
-      tag.textContent = '👁 HAND EXPOSED — visible to all opponents';
-      headEl.appendChild(tag);
+       human.exposed = true for the rest of the mission. We toggle a
+       dedicated full-width banner element so it's unmissable. */
+    const banner = document.getElementById('human-exposed-banner');
+    if (banner){
+      if (human.exposed) banner.removeAttribute('hidden');
+      else               banner.setAttribute('hidden', '');
     }
 
     const statsEl = document.getElementById('human-stats');
@@ -681,6 +715,10 @@
         const hb = document.createElement('button'); hb.textContent = 'View Score History';
         hb.addEventListener('click', showHistoryModal);
         foot.appendChild(hb);
+        const eb = document.createElement('button'); eb.textContent = '⇩ Export Game Log';
+        eb.title = 'Download a complete JSON record of this game for later analysis. This is your last chance — starting a new game wipes the in-memory state.';
+        eb.addEventListener('click', downloadGameLog);
+        foot.appendChild(eb);
         const rb = document.createElement('button'); rb.className = 'primary'; rb.textContent = 'New Game';
         rb.addEventListener('click', () => { location.reload(); });
         foot.appendChild(rb);
@@ -697,6 +735,8 @@
     if (tg) tg.addEventListener('click', () => document.getElementById('comms-panel').classList.toggle('open'));
     const sb = document.getElementById('btn-scores');
     if (sb) sb.addEventListener('click', showScoreboardModal);
+    const ex = document.getElementById('btn-export-log');
+    if (ex) ex.addEventListener('click', downloadGameLog);
   }
 
   /* ============================================================ Score history (localStorage) ============================================================
@@ -712,6 +752,168 @@
    * Load saved history rows, most-recent first.
    * @returns {Object[]}
    */
+  /* ============================================================
+   * Game-log export — structured JSON, downloadable as a file.
+   * ============================================================ */
+
+  /** Format Date as YYYYMMDD-HHMMSS (local time). Used in export filenames so
+   *  multiple exports on the same day don't collide on disk. */
+  function formatTimestamp(d){
+    const y  = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return '' + y + mo + da + '-' + hh + mm + ss;
+  }
+
+  /** Read the build-version label from the DOM (single source of truth). */
+  function readBuildVersion(){
+    const el = document.querySelector('.version');
+    if (!el) return null;
+    const m = (el.textContent || '').match(/VERSION\s+([\d.]+)/i);
+    return m ? m[1] : null;
+  }
+
+  /** Plain serializable card representation. */
+  function serializeCard(c){
+    if (!c) return null;
+    return {
+      suit: c.suit,
+      rank: c.rank,
+      id:   c.id,
+      label: R.card ? R.card.cardLabel(c) : (c.rank + (c.suit || '')),
+      name:  R.card ? R.card.cardName(c)  : null,
+      points: R.card ? R.card.basePoints(c) : null
+    };
+  }
+
+  /** Serialize a play (one card put into a trick) for export. */
+  function serializePlay(play){
+    return {
+      playerIdx: play.playerIdx,
+      who:       play.who,
+      card:      serializeCard(play.card),
+      ts:        play.timestamp ? play.timestamp.toISOString() : null
+    };
+  }
+
+  /** Serialize a completed trick. Called from flow.js when a trick closes. */
+  function serializeTrick(trick, ledSuit, winnerIdx, isInvasion){
+    return {
+      type:      isInvasion ? 'invasion' : 'normal',
+      ledSuit:   ledSuit || null,
+      plays:     trick.map(serializePlay),
+      winnerIdx: winnerIdx,
+      capturedCards: trick.map(p => serializeCard(p.card))
+    };
+  }
+
+  /**
+   * Build the full game-log object for export. Safe to call at any point
+   * during the game — incomplete missions are flagged `inProgress: true`.
+   * @returns {Object} the serializable export object.
+   */
+  function buildGameLogJson(){
+    const G = R.state ? R.state.G : null;
+    const M = R.state ? R.state.M : null;
+    const now = new Date();
+
+    const exportObj = {
+      schema: 'b7-rebellion-game-log',
+      schemaVersion: 1,
+      exportedAt: now.toISOString(),
+      exportedAtLocal: now.toString(),
+      buildVersion: readBuildVersion(),
+      game: null,
+      missions: [],
+      currentMission: null,
+      commsLog: []
+    };
+
+    if (!G){
+      exportObj.note = 'No active game state at export time.';
+      return exportObj;
+    }
+
+    /* High-level game info */
+    exportObj.game = {
+      startedAt:     G.gameStartedAt ? new Date(G.gameStartedAt).toISOString() : null,
+      durationMs:    G.gameStartedAt ? (Date.now() - G.gameStartedAt) : null,
+      numPlayers:    G.numPlayers,
+      totalMissions: G.numPlayers,
+      missionIndex:  G.missionIndex,
+      difficulty:    G.difficulty,
+      systemName:    G.systemName || null,
+      startDealer:   G.startDealer,
+      totals:        Array.isArray(G.totals) ? G.totals.slice() : [],
+      players: (G.players || []).map(p => ({
+        idx:         p.idx,
+        name:        p.name,
+        isHuman:     p.isHuman,
+        color:       p.color,
+        aiLevel:     p.isHuman ? null : (p.difficulty || null),
+        personaTag:  p.persona ? p.persona.tag  : null,
+        personaName: p.persona ? p.persona.name : null,
+        personaRole: p.persona ? p.persona.role : null
+      }))
+    };
+
+    /* Completed missions */
+    exportObj.missions = Array.isArray(G.missionLog) ? G.missionLog.slice() : [];
+
+    /* Current mission (if mid-game) */
+    if (M && !M.missionOver){
+      exportObj.currentMission = {
+        missionIndex:    G.missionIndex,
+        dealerIdx:       M.dealerIdx,
+        reserveSize:     Array.isArray(M.reserve) ? M.reserve.length : 0,
+        invasionActive:  M.invasionActive,
+        fullCrewClaimed: M.fullCrewClaimed,
+        starOneBattleOccurred: !!M.starOneBattleOccurred,
+        tricksSoFar:     Array.isArray(M.tricks) ? M.tricks.slice() : [],
+        currentTrick:    Array.isArray(M.currentTrick) ? M.currentTrick.map(serializePlay) : [],
+        ledSuit:         M.ledSuit || null,
+        handsRemaining:  (G.players || []).map(p => p.hand.length),
+        pilesSoFar:      (G.players || []).map(p => p.pile.map(serializeCard))
+      };
+    }
+
+    /* Comms transcript */
+    exportObj.commsLog = Array.isArray(G.commsLog) ? G.commsLog.slice() : [];
+
+    return exportObj;
+  }
+
+  /**
+   * Trigger a browser download of the current game log as a JSON file.
+   * Filename: b7-rebellion-YYYYMMDD.json (per the user's spec).
+   * Uses Blob + temporary <a download> click — standard pattern that
+   * works in all modern browsers including iOS Safari.
+   */
+  function downloadGameLog(){
+    const data = buildGameLogJson();
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const filename = 'b7-rebellion-' + formatTimestamp(new Date()) + '.json';
+
+    const a = document.createElement('a');
+    a.href     = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+    logSystem('💾 Game log exported to <code>' + escapeHtml(filename) + '</code> (' +
+              (Math.round(json.length / 1024)) + ' KB).');
+    return filename;
+  }
+
+
   function loadGameHistory(){
     try {
       const raw = window.localStorage && localStorage.getItem(HISTORY_KEY);
@@ -898,6 +1100,7 @@
     cardSort, attachUiHandlers, animateTrickCapture, formatTime, awaitContinue,
     elevateWinnerSeat, clearWinnerElevation, showWinScoreFlash,
     startTimers, fmtElapsed, logLayoutMetrics,
-    saveGameToHistory, loadGameHistory, clearGameHistory, showHistoryModal
+    saveGameToHistory, loadGameHistory, clearGameHistory, showHistoryModal,
+    buildGameLogJson, downloadGameLog, serializeTrick
   };
 })();

@@ -18,8 +18,9 @@
   'use strict';
   const R = (window.Rebellion = window.Rebellion || {});
 
-  /* ---- Tunable weights. A future Node optimizer can overwrite this object. ---- */
-  const WEIGHTS = {
+  /* ---- Tunable weights. The optimizer overwrites these via setWeights().
+   * The defaults below match the shipping gamma-weights.json. ---- */
+  const DEFAULT_WEIGHTS = {
     /* Leading bias by suit (lower = more preferred to lead) */
     lead_heart_bias:    60,
     lead_diamond_bias:  20,
@@ -48,9 +49,24 @@
     gamble_capval_threshold: 8
   };
 
+  /** Live weights object. Mutated by setWeights(). Read by chooseCard at call time. */
+  let activeWeights = Object.assign({}, DEFAULT_WEIGHTS);
+
+  /**
+   * Overwrite the active weights. Optimizer / tournament harness calls this
+   * between runs. Unknown keys are kept; missing keys fall back to defaults.
+   * @param {Object} obj
+   */
+  function setWeights(obj){
+    activeWeights = Object.assign({}, DEFAULT_WEIGHTS, obj || {});
+  }
+
+  /** @returns {Object} A copy of the current active weights. */
+  function getWeights(){ return Object.assign({}, activeWeights); }
+
   function chooseCard(player, legal, trick, ledSuit, isInvasion, ctx){
     const { basePoints, isJoker, rankValue, RANKS } = ctx.card;
-    const W = WEIGHTS;
+    const W = activeWeights;
 
     /* ---- knowledge state ---- */
     const seenIds = new Set();
@@ -165,6 +181,8 @@
     chooseCard,
     chooseZenTarget,
     choosePickLockTarget,
-    weights: WEIGHTS                // exposed so tuners/inspectors can introspect
+    setWeights,                      // optimizer calls this between runs
+    getWeights,                      // inspector / debug
+    get weights(){ return activeWeights; }   // legacy back-compat
   });
 })();
