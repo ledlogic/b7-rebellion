@@ -418,14 +418,12 @@ header.topbar{
   transform:translate(-50%, -50%) scale(1);
   opacity:1;
   font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
-  font-size:78px;
-  font-weight:900;
-  letter-spacing:0.02em;
   text-shadow:0 0 14px rgba(0,0,0,0.65);
   transition:transform 0.62s ease-in, opacity 0.62s ease-in;
   pointer-events:none;
   z-index:6;
   white-space:nowrap;
+  text-align:center;
 }
 .win-score.fade-out{
   transform:translate(-50%, -50%) scale(0.16);
@@ -434,6 +432,21 @@ header.topbar{
 .win-score.pos{color:var(--good);}
 .win-score.neg{color:var(--bad);}
 .win-score.zero{color:var(--muted);}
+.win-score-big{
+  font-size:78px;
+  font-weight:900;
+  line-height:0.9;
+  letter-spacing:0.02em;
+}
+.win-score-sub{
+  font-size:18px;
+  font-weight:600;
+  letter-spacing:0.05em;
+  opacity:0.78;
+  margin-top:6px;
+  text-align:center;
+  /* Inherit the parent .win-score color but at a slightly muted weight */
+}
 .hand-row{display:flex;gap:6px;flex-wrap:wrap;min-height:96px;align-items:flex-end;}
 
 .card{

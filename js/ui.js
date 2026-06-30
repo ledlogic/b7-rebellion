@@ -156,13 +156,31 @@
 
   /* Big centered score readout. Fires concurrently with animateTrickCapture
      so the score fades out as the cards arrive at the winner. */
-  function showWinScoreFlash(score, hasPower){
+  /** Show the trick-capture score flash. Big number is the *delta* this
+   *  trick contributed (sum of basePoints of the cards in the trick) — that's
+   *  what the player intuitively expects when they see the captured cards.
+   *  Small annotation below shows the winner's new pile total for context.
+   *  Previously the flash showed only `pile + trick` (the new total), which
+   *  was correct math but confusing — a trick with many black cards could
+   *  still flash a big positive number if the winner had a strong pile
+   *  going in. */
+  function showWinScoreFlash(trickDelta, newPileTotal, hasPower){
     const centerArea = document.getElementById('center-area');
     if (!centerArea) return;
-    const cls = score > 0 ? 'pos' : (score < 0 ? 'neg' : 'zero');
+    const cls = trickDelta > 0 ? 'pos' : (trickDelta < 0 ? 'neg' : 'zero');
     const el = document.createElement('div');
     el.className = 'win-score ' + cls;
-    el.textContent = (score >= 0 ? '+' : '') + score + (hasPower ? '*' : '');
+    /* Two-line structure: big trick delta, small pile-total annotation. */
+    const big = document.createElement('div');
+    big.className = 'win-score-big';
+    big.textContent = (trickDelta >= 0 ? '+' : '') + trickDelta + (hasPower ? '*' : '');
+    el.appendChild(big);
+    if (typeof newPileTotal === 'number'){
+      const sub = document.createElement('div');
+      sub.className = 'win-score-sub';
+      sub.textContent = 'pile now ' + (newPileTotal >= 0 ? '+' : '') + newPileTotal;
+      el.appendChild(sub);
+    }
     centerArea.appendChild(el);
     /* Two rAFs so the initial state is painted before the transition class
        is added — otherwise the browser may collapse to the final state. */
@@ -293,6 +311,10 @@
           if (typeof entry === 'object' && entry !== null){
             ol.textContent = entry.text || '';
             if (entry.own) ol.classList.add('own');
+            /* Tint the label with the owner's seat color so the player can
+               match each pile chunk visually to its seat without reading the
+               name. Falls back to default CSS color when not provided. */
+            if (entry.color) ol.style.color = entry.color;
           } else {
             ol.textContent = String(entry);
           }

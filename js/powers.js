@@ -141,8 +141,9 @@
     let pick;
     if (winner.isHuman){
       const labels = pool.map(({owner}) => ({
-        text: (owner.idx === winner.idx) ? 'YOUR pile' : owner.name + "'s pile",
-        own:  (owner.idx === winner.idx)
+        text:  (owner.idx === winner.idx) ? 'YOUR pile' : owner.name + "'s pile",
+        own:   (owner.idx === winner.idx),
+        color: owner.color
       }));
       const cards = pool.map(p => p.card);
       const sel = await UI.askCards('Orac — Cancel a Card Value',
@@ -169,9 +170,9 @@
     if (pick){
       pick.card._cancelled = true;
       winner.oracUsed = true;
-      const where = (pick.owner.idx === winner.idx) ? 'their own captured cards'
+      const where = (pick.owner.idx === winner.idx) ? E.possessiveOf(winner.name) + ' own captured cards'
                                                     : E.possessiveOf(pick.owner.name) + ' captured cards';
-      UI.logSystem(winner.name + ' uses Orac (A♦) to cancel ' + C.cardLabel(pick.card) + ' (' + C.cardName(pick.card) + ') in ' + where + ' — scores 0 this Mission.');
+      UI.logSystem(winner.name + ' ' + E.verbFor(winner.name, 'uses') + ' Orac (A♦) to cancel ' + C.cardLabel(pick.card) + ' (' + C.cardName(pick.card) + ') in ' + where + ' — scores 0 this Mission.');
       if (!winner.isHuman) UI.say(winner, 'power');
       UI.renderAll(); await E.sleep(250);
       return pick;

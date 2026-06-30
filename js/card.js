@@ -191,14 +191,22 @@
     }
     if (c.suit === 'D'){
       if (numeric && r!=='10') return { name:'Tech Salvage', base:1 };
-      if (r==='10') return { name:'IMIPAK', base:1, scorePower:'imipak' };
+      /* IMIPAK: aligned with the other named Diamond techs at +5 (Teleport,
+         Liberator, Zen, Orac all +5). User decision; rulebook through
+         v2.48 listed +1 but the named-tech parity is the design intent. */
+      if (r==='10') return { name:'IMIPAK', base:5, scorePower:'imipak' };
       if (r==='J')  return { name:'Teleport Bracelet', base:5, power:'teleport' };
       if (r==='Q')  return { name:'Liberator', base:5, power:'destroyReserve' };
       if (r==='K')  return { name:'Zen', base:5 };
       if (r==='A')  return { name:'Orac', base:5, power:'oracPeek', scorePower:'oracCancel' };
     }
     if (c.suit === 'C'){
-      if (numeric && r!=='10') return { name:'Hazard', base: -parseInt(r,10) };
+      /* Per rulebook v2.48 line 90: Clubs 2-9 are −1 each (uniform), NOT
+         face-value −2 to −9 as the code previously had. Long-standing bug
+         — every game scored Clubs too punitively. The Gamma/Beta tunings
+         were calibrated against the wrong values, so AI strength
+         measurements will shift after this fix. */
+      if (numeric && r!=='10') return { name:'Hazard', base: -1 };
       if (r==='10') return { name:'Dayna Mellanby', base:0, scorePower:'dayna' };
       if (r==='J')  return { name:'System Failure', base:-5 };
       if (r==='Q')  return { name:'Asteroid Field', base:-5 };
@@ -206,8 +214,12 @@
       if (r==='A')  return { name:'Star One', base:-5, power:'starOneEnd' };
     }
     if (c.suit === 'S'){
-      if (numeric)  return { name:'Federation Trooper', base: -parseInt(r,10) };
+      /* Anna Grant is rank 10 — must match BEFORE the generic numeric
+         branch, since `numeric` is true for ranks 2-10. Previously the
+         generic branch caught Spades 10 first and labeled it "Federation
+         Trooper" (value was right, name was wrong). */
       if (r==='10') return { name:'Anna Grant', base:-10 };
+      if (numeric)  return { name:'Federation Trooper', base: -parseInt(r,10) };
       if (r==='J')  return { name:'Mutoid', base:-10, scorePower:'mutoid' };
       if (r==='Q')  return { name:'Section Leader', base:-10 };
       if (r==='K')  return { name:'Travis', base:-10, power:'seizeReserve' };

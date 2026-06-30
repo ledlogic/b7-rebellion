@@ -178,7 +178,7 @@
   R.ai.register('gamma', {
     label: 'Γ Gamma — Officer',
     description: 'Tracks every play, counts what is still out, exploits known voids.',
-    iq: 123,          // empirical: 34.2% win rate vs Delta in 500-game tournament, seed 42
+    iq: 115,          // re-measured post-v2.72 (Clubs scoring bug fix): 31.1% vs 3 Delta, 1000 games seed 42. Was 123 pre-fix.
     chooseCard,
     chooseZenTarget,
     choosePickLockTarget,

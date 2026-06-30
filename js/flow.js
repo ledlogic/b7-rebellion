@@ -219,7 +219,24 @@
       return !!(meta && (meta.power || meta.scorePower));
     });
 
-    UI.showWinScoreFlash(effective, hasPower);
+    /* Log a verifiable breakdown of the trick's math: each card with its
+       base value, the sum, and the winner's new running pile total. This
+       gives the player an audit trail — "I see 3 black cards but the
+       flash says positive, let me check the math" — and makes any future
+       basePoints regression instantly visible in the comms log. */
+    const trickBreakdown = cards.map(c => {
+      const bp = C.basePoints(c);
+      return C.cardLabel(c) + '(' + (bp >= 0 ? '+' : '') + bp + ')';
+    }).join(' + ');
+    UI.logSystem(winner.name + ' captures: ' + trickBreakdown +
+      ' = ' + (trickScore >= 0 ? '+' : '') + trickScore +
+      '  →  pile now ' + (effective >= 0 ? '+' : '') + effective);
+
+    /* Flash shows the trick delta prominently and the new running pile
+       total as a small annotation. The cards visible in the trick area
+       sum to the big number — what the player intuits — while the pile
+       total tells them where they stand now. */
+    UI.showWinScoreFlash(trickScore, effective, hasPower);
     await UI.animateTrickCapture(winnerIdx);
     M.currentTrick = [];
 
@@ -320,7 +337,7 @@
     } else {
       // AI picks the suit most opponents are likely void in, or a random suit
       M.vilaLedSuit = ['H','D','C','S'][Math.floor(Math.random()*4)];
-      UI.logSystem('Vila: ' + declarer.name + ' declares ' + suits.find(s => s.value===M.vilaLedSuit).label + ' as the required suit for this trick.');
+      UI.logSystem('Vila: ' + declarer.name + ' ' + E.verbFor(declarer.name, 'declares') + ' ' + suits.find(s => s.value===M.vilaLedSuit).label + ' as the required suit for this trick.');
     }
   }
 
@@ -468,9 +485,9 @@
       if (C.pileHas(p.pile, 'D', 'A') && !p.oracUsed){
         const pick = await POW.powerOracCancel(p);
         if (pick){
-          const where = (pick.owner.idx === p.idx) ? 'their own captured cards'
+          const where = (pick.owner.idx === p.idx) ? E.possessiveOf(p.name) + ' own captured cards'
                                                    : E.possessiveOf(pick.owner.name) + ' captured cards';
-          notes.push(p.name + ' uses Orac (A♦) to cancel ' + C.cardLabel(pick.card) + ' (' + C.cardName(pick.card) + ') in ' + where + ' — scores 0.');
+          notes.push(p.name + ' ' + E.verbFor(p.name, 'uses') + ' Orac (A♦) to cancel ' + C.cardLabel(pick.card) + ' (' + C.cardName(pick.card) + ') in ' + where + ' — scores 0.');
         }
       }
     }
@@ -481,7 +498,7 @@
         const asteroidField = p.pile.find(c => c.suit === 'C' && c.rank === 'Q');
         if (asteroidField && !asteroidField._cancelled){
           asteroidField._cancelled = true;
-          notes.push(p.name + ' holds Zen (K♦) + Liberator (Q♦) + Asteroid Field (Q♣) — the Liberator knows these rocks, the Asteroid Field is negated and scores 0.');
+          notes.push(p.name + ' ' + E.verbFor(p.name, 'holds') + ' Zen (K♦) + Liberator (Q♦) + Asteroid Field (Q♣) — the Liberator knows these rocks, the Asteroid Field is negated and scores 0.');
         }
       }
     }
@@ -507,11 +524,11 @@
         if (hearts.length > 0){
           const alreadyDead = hearts.find(c => c._cancelled);
           if (alreadyDead){
-            notes.push(p.name + ' holds the Mutoid (J♠) — she feeds on the already-cancelled ' + C.cardLabel(alreadyDead) + ' in their pile; no further effect.');
+            notes.push(p.name + ' ' + E.verbFor(p.name, 'holds') + ' the Mutoid (J♠) — she feeds on the already-cancelled ' + C.cardLabel(alreadyDead) + ' in ' + E.possessiveOf(p.name) + ' pile; no further effect.');
           } else {
             const target = hearts.slice().sort((a, b) => C.basePoints(a) - C.basePoints(b))[0];
             target._cancelled = true;
-            notes.push(p.name + ' holds the Mutoid (J♠) — she drains ' + C.cardLabel(target) + ' from ' + E.possessiveOf(p.name) + ' Hearts for blood serum (the lowest-value Heart), now scoring 0.');
+            notes.push(p.name + ' ' + E.verbFor(p.name, 'holds') + ' the Mutoid (J♠) — she drains ' + C.cardLabel(target) + ' from ' + E.possessiveOf(p.name) + ' Hearts for blood serum (the lowest-value Heart), now scoring 0.');
           }
         } else {
           /* v2.46 — Mutoid with no Hearts available cannot get her serum.
@@ -519,7 +536,7 @@
           const mutoid = p.pile.find(c => c.suit === 'S' && c.rank === 'J');
           if (mutoid && !mutoid._cancelled && !mutoid._assassinated){
             mutoid._cancelled = true;
-            notes.push(p.name + ' holds the Mutoid (J♠) — no Hearts in their pile, she cannot get her serum, stops working, and scores 0 herself (instead of her usual −10).');
+            notes.push(p.name + ' ' + E.verbFor(p.name, 'holds') + ' the Mutoid (J♠) — no Hearts in ' + E.possessiveOf(p.name) + ' pile, she cannot get her serum, stops working, and scores 0 herself (instead of her usual −10).');
           }
         }
       }
@@ -545,8 +562,9 @@
       let pick;
       if (p.isHuman){
         const labels = pool.map(({owner}) => ({
-          text: (owner.idx === p.idx) ? 'YOUR pile' : owner.name + "'s pile",
-          own:  (owner.idx === p.idx)
+          text:  (owner.idx === p.idx) ? 'YOUR pile' : owner.name + "'s pile",
+          own:   (owner.idx === p.idx),
+          color: owner.color
         }));
         const cards = pool.map(x => x.card);
         const sel = await UI.askCards('IMIPAK — Assassinate a Person Card',
@@ -569,13 +587,13 @@
 
       if (pick){
         pick.card._assassinated = true;
-        const where = (pick.owner.idx === p.idx) ? 'their own captured cards'
+        const where = (pick.owner.idx === p.idx) ? E.possessiveOf(p.name) + ' own captured cards'
                                                  : E.possessiveOf(pick.owner.name) + ' captured cards';
         /* Name the specific "other 10" that paired with IMIPAK so it's clear
            what triggered the power. Prefer a non-Dayna 10 if present (more
            thematic — Gan or Anna Grant), but any non-IMIPAK 10 in the pile works. */
         const trigger = otherTens[0];
-        notes.push(p.name + ' uses IMIPAK (10♦) + ' + C.cardLabel(trigger) + ' (' + C.cardName(trigger) + ') to assassinate ' + C.cardLabel(pick.card) + ' (' + C.cardName(pick.card) + ') in ' + where + ' — scores 0.');
+        notes.push(p.name + ' ' + E.verbFor(p.name, 'uses') + ' IMIPAK (10♦) + ' + C.cardLabel(trigger) + ' (' + C.cardName(trigger) + ') to assassinate ' + C.cardLabel(pick.card) + ' (' + C.cardName(pick.card) + ') in ' + where + ' — scores 0.');
       }
     }
 
@@ -585,10 +603,10 @@
       if (dayna && !dayna._cancelled && !dayna._assassinated){
         if (battleOccurred){
           dayna._daynaBonus = true;
-          notes.push(p.name + ' holds Dayna Mellanby (10♣) — the Star One battle occurred this Mission, so she scores +10.');
+          notes.push(p.name + ' ' + E.verbFor(p.name, 'holds') + ' Dayna Mellanby (10♣) — the Star One battle occurred this Mission, so she scores +10.');
         } else {
           dayna._daynaSuppressed = true;
-          notes.push(p.name + ' holds Dayna Mellanby (10♣) — no Star One battle this Mission, so she scores 0.');
+          notes.push(p.name + ' ' + E.verbFor(p.name, 'holds') + ' Dayna Mellanby (10♣) — no Star One battle this Mission, so she scores 0.');
         }
       }
     }
@@ -615,7 +633,7 @@
     for (const p of G.players){
       if (C.pileHas(p.pile, 'C', 'K') && C.pileHas(p.pile, 'S', 'A')){
         stepTotals[p.idx] = -stepTotals[p.idx];
-        notes.push(p.name + " holds Carnell (K♣) + Servalan (A♠) — the Psycho-Strategist's Gambit reverses their total to " + stepTotals[p.idx] + '.');
+        notes.push(p.name + ' ' + E.verbFor(p.name, 'holds') + " Carnell (K♣) + Servalan (A♠) — the Psycho-Strategist's Gambit reverses " + E.possessiveOf(p.name) + ' total to ' + stepTotals[p.idx] + '.');
       }
     }
 
@@ -627,8 +645,171 @@
     return { notes, missionTotals: stepTotals };
   }
 
+  /* ============================================================
+   * Headless rollout infrastructure — foundation for Alpha-tier AI.
+   *
+   * Alpha will need to "try a move and see how it plays out" — that's a
+   * Mission-completion playout from arbitrary mid-state, dozens of times
+   * per real decision. The same flow code runs, but with the UI muted
+   * and animation sleeps elided. Two pieces below: a wrapper that swaps
+   * UI methods + E.sleep to no-ops for the duration of a callback, and
+   * a rollout primitive that resumes the current Mission to scoring.
+   * ============================================================ */
+
+  /** Methods to overwrite on R.ui during headless runs. Mirrors
+   *  tools/tournament.js#makeUiShim — same code path, same shapes — so
+   *  Alpha rollouts inside the browser get the same fast no-UI behavior
+   *  the tournament harness already uses on Node. Dialog-input methods
+   *  (askCards, askButtons, etc.) throw if invoked because rollouts must
+   *  never block on human input. */
+  function uiShimDefs(){
+    const noop = () => {};
+    const asyncNoop = async () => {};
+    return {
+      logSystem:           noop,
+      logAndromedan:       noop,
+      logChat:             noop,
+      renderAll:           noop,
+      renderHeader:        noop,
+      renderSeats:         noop,
+      renderHumanHand:     noop,
+      renderCenter:        noop,
+      setCenterMsg:        noop,
+      setCenterMsgHTML:    noop,
+      say:                 noop,
+      showBubble:          noop,
+      logLayoutMetrics:    noop,
+      startTimers:         noop,
+      clearWinnerElevation:noop,
+      showWinScoreFlash:   noop,
+      saveGameToHistory:   noop,
+      playerChip:          () => '',
+      escapeHtml:          (s) => String(s),
+      elevateWinnerSeat:   () => null,
+      serializeTrick:      (trick, ledSuit, winnerIdx, isInvasion) => ({
+        type:    isInvasion ? 'invasion' : 'normal',
+        ledSuit: ledSuit || null,
+        plays:   trick.map(p => ({
+          playerIdx: p.playerIdx, who: p.who,
+          card: { suit: p.card.suit, rank: p.card.rank, id: p.card.id }
+        })),
+        winnerIdx
+      }),
+      animateTrickCapture: asyncNoop,
+      awaitContinue:       asyncNoop,
+      askInfo:             asyncNoop,
+      showInfoBanner:      asyncNoop,
+      showScoringModal:    asyncNoop,
+      showFinalResults:    asyncNoop,
+      showHumanPileModal:  asyncNoop,
+      showScoreboardModal: asyncNoop,
+      closeModal:          noop,
+      askCards:            () => { throw new Error('UI.askCards called during headless rollout'); },
+      askButtons:          () => { throw new Error('UI.askButtons called during headless rollout'); },
+      askPairOfCards:      () => { throw new Error('UI.askPairOfCards called during headless rollout'); },
+      getHumanCard:        () => { throw new Error('UI.getHumanCard called during headless rollout'); }
+    };
+  }
+
+  /** Run an async callback with UI and animation sleeps muted. Saves the
+   *  original method bodies on UI and E, installs the shim, awaits the
+   *  callback, then restores. Captured references in modules (e.g.
+   *  `const UI = R.ui;` at the top of this file) stay valid because we
+   *  mutate the existing UI object's properties rather than replacing UI
+   *  itself. Try/finally guarantees restoration even on errors.
+   *
+   *  @param {() => Promise<T>} workFn
+   *  @returns {Promise<T>} whatever workFn returned
+   */
+  async function runHeadless(workFn){
+    const shim = uiShimDefs();
+    const savedUi = {};
+    for (const k of Object.keys(shim)) savedUi[k] = UI[k];
+    const savedSleep = E.sleep;
+
+    for (const k of Object.keys(shim)) UI[k] = shim[k];
+    E.sleep = async () => {};
+    R.headlessMode = true;
+
+    try {
+      return await workFn();
+    } finally {
+      for (const k of Object.keys(savedUi)) UI[k] = savedUi[k];
+      E.sleep = savedSleep;
+      R.headlessMode = false;
+    }
+  }
+
+  /** Complete an in-progress trick from a given position in the lead order.
+   *  Used by rolloutMission when called mid-trick (Alpha's typical case).
+   *  Assumes the caller has set the AI policy for the seat that's about to
+   *  play next — if not, R.ai.chooseCard is invoked for AI players, and
+   *  human players throw because they can't be played out automatically. */
+  async function completePartialTrick(startPos){
+    const G = S.G, M = S.M;
+    const order = [];
+    for (let i = 0; i < G.numPlayers; i++) order.push((M.leadIdx + i) % G.numPlayers);
+
+    for (let i = startPos; i < order.length; i++){
+      const pIdx = order[i];
+      M.currentTurn = pIdx;
+      const player = G.players[pIdx];
+      if (player.isHuman){
+        throw new Error('completePartialTrick: human in seat ' + pIdx + ' (rollouts must substitute the human first)');
+      }
+      const legal = E.legalPlays(player.hand, M.ledSuit, M.currentTrick);
+      const card = R.ai.chooseCard(player, legal, M.currentTrick, M.ledSuit, false);
+      player.hand = player.hand.filter(c => c.id !== card.id);
+      const ledSuitBefore = M.ledSuit;
+      M.currentTrick.push({ playerIdx: pIdx, who: 'PLAYER', card, timestamp: new Date() });
+      if (!M.ledSuit && !C.isJoker(card)) M.ledSuit = card.suit;
+      S.recordPlay(pIdx, card, ledSuitBefore);
+    }
+
+    const winnerIdx = E.resolveTrickWinner(M.currentTrick, M.ledSuit);
+    await resolveTrickEnd(M.currentTrick, winnerIdx, false);
+  }
+
+  /** Complete the current Mission from the live state to scoring. Resumes
+   *  whatever's in progress — finishes the in-flight trick if there is
+   *  one, then runs the remaining trick/invasion loop, then scores.
+   *  Returns `{breakdown, totals}` where totals reflect post-scoring
+   *  cumulative game totals. Caller is responsible for snapshotting via
+   *  S.cloneState() before this and restoring after if they want to
+   *  preserve the live state.
+   *
+   *  Must be invoked inside runHeadless() to suppress UI/animation. */
+  async function rolloutMission(){
+    const M = S.M;
+    if (!M) throw new Error('rolloutMission: no mission state');
+
+    /* Finish the trick if mid-flight */
+    if (!M.missionOver && M.currentTrick && M.currentTrick.length > 0
+        && M.currentTrick.length < S.G.numPlayers){
+      await completePartialTrick(M.currentTrick.length);
+    }
+
+    /* Run the rest of the mission via the standard loop */
+    while (!M.missionOver){
+      if (M.invasionActive) await playInvasionWave();
+      else await playNormalTrick();
+      if (!M.missionOver) checkInvasionTrigger();
+    }
+
+    /* Score */
+    let breakdown = null;
+    if (M.missionResult !== 'andromedan' && M.missionResult !== 'vilaBluff'){
+      breakdown = await scoreMission();
+      recordMissionSummary(breakdown);
+    } else {
+      recordMissionSummary(null);
+    }
+    return { breakdown, totals: S.G.totals.slice(), missionResult: M.missionResult };
+  }
+
   R.flow = {
     runGame, runMission, playNormalTrick, playInvasionWave,
-    resolveTrickEnd, checkInvasionTrigger, resolveFullCrew, scoreMission
+    resolveTrickEnd, checkInvasionTrigger, resolveFullCrew, scoreMission,
+    runHeadless, completePartialTrick, rolloutMission
   };
 })();

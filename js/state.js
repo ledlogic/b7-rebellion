@@ -72,6 +72,120 @@
         if (!M.knownVoids[playerIdx]) M.knownVoids[playerIdx] = new Set();
         M.knownVoids[playerIdx].add(ledSuitBefore);
       }
+    },
+
+    /** Deep-clone the full game state (G + M) into a snapshot suitable for
+     *  restoring later. This is the foundation for Alpha-tier rollouts —
+     *  Alpha will snapshot before hypothesizing a move, run the Mission
+     *  forward via fastForward, then restore the snapshot to try another
+     *  move. Same card.id appears in multiple places (hand, pile, trick,
+     *  playedCards) so we use a per-clone Map to preserve identity:
+     *  the SAME cloned card object is referenced everywhere the original
+     *  was, keeping `===` comparisons valid.
+     *
+     *  NOT cloned (intentionally): persona objects (read-only config shared
+     *  by all clones), UI promise handles like `_humanResolve`, the function
+     *  object inside `aiLevel`. Cloned: every mutable array and object,
+     *  including each card (since `_cancelled` / `_assassinated` flags mutate).
+     *
+     *  @returns {?{G, M}}  Snapshot, or null if state isn't initialized yet.
+     */
+    cloneState(){
+      const G = state.G;
+      if (!G) return null;
+      const M = state.M;
+
+      const cardMap = new Map();
+      function cloneCard(c){
+        if (!c) return c;
+        const cached = cardMap.get(c.id);
+        if (cached) return cached;
+        const cc = Object.assign({}, c);
+        cardMap.set(c.id, cc);
+        return cc;
+      }
+      function cloneCardArr(arr){ return arr ? arr.map(cloneCard) : arr; }
+
+      const players = G.players.map(p => ({
+        idx:      p.idx,
+        isHuman:  p.isHuman,
+        persona:  p.persona,                 // shared read-only config
+        aiLevel:  p.aiLevel,
+        name:     p.name,
+        color:    p.color,
+        hand:     cloneCardArr(p.hand),
+        pile:     cloneCardArr(p.pile),
+        total:    p.total,
+        exposed:  p.exposed,
+        oracUsed: p.oracUsed
+      }));
+
+      const Gc = {
+        numPlayers:    G.numPlayers,
+        players,
+        missionIndex:  G.missionIndex,
+        totals:        G.totals.slice(),
+        missionLog:    G.missionLog ? JSON.parse(JSON.stringify(G.missionLog)) : [],
+        startDealer:   G.startDealer,
+        difficulty:    G.difficulty,
+        systemName:    G.systemName,
+        gameStartedAt: G.gameStartedAt,
+        commsLog:      G.commsLog ? G.commsLog.slice() : null,
+        mix:           G.mix ? Object.assign({}, G.mix) : undefined
+      };
+
+      let Mc = null;
+      if (M){
+        const knownVoids = {};
+        for (const k of Object.keys(M.knownVoids || {})){
+          knownVoids[k] = new Set(M.knownVoids[k]);
+        }
+        Mc = {
+          dealerIdx:              M.dealerIdx,
+          reserve:                cloneCardArr(M.reserve),
+          reserveDestroyed:       M.reserveDestroyed,
+          fullCrewClaimed:        M.fullCrewClaimed,
+          invasionActive:         M.invasionActive,
+          currentTurn:            M.currentTurn,
+          leadIdx:                M.leadIdx,
+          ledSuit:                M.ledSuit,
+          vilaLedSuit:            M.vilaLedSuit,
+          currentTrick:           (M.currentTrick || []).map(p => ({
+            playerIdx: p.playerIdx,
+            who:       p.who,
+            card:      cloneCard(p.card),
+            timestamp: p.timestamp
+          })),
+          tricks:                 M.tricks ? JSON.parse(JSON.stringify(M.tricks)) : [],
+          trickNumber:            M.trickNumber,
+          playedCards:            cloneCardArr(M.playedCards),
+          knownVoids,
+          missionOver:            M.missionOver,
+          missionResult:          M.missionResult,
+          starOneBattleOccurred:  M.starOneBattleOccurred,
+          awaitingHumanCard:      false,           // UI-coupled; reset to safe default
+          _humanResolve:          null,            // UI-coupled; not carried into clones
+          startedAt:              M.startedAt
+        };
+      }
+
+      return { G: Gc, M: Mc };
+    },
+
+    /** Restore a snapshot returned by cloneState(). Replaces state.G and
+     *  state.M with the snapshot's objects. The snapshot is taken over
+     *  by reference — discard it after restoring or further mutations
+     *  to the live state will affect what you thought was a snapshot.
+     *
+     *  Typical pattern in Alpha rollouts:
+     *      const snap = S.cloneState();
+     *      // ... mutate live state, run rollout ...
+     *      S.restoreState(snap);
+     */
+    restoreState(snap){
+      if (!snap) return;
+      state.G = snap.G;
+      state.M = snap.M;
     }
   };
 

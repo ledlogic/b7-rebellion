@@ -54,9 +54,20 @@
       const idx = history[key].pop();
       return pool[idx];
     },
-    /* Used by setup. Returns N randomly-selected personas. */
+    /* Used by setup. Returns N randomly-selected personas with names
+     *  resolved per-game from each persona's nameOptions pool if present.
+     *  Each call produces a fresh sample, so successive games get different
+     *  names from the same archetype pool — same personality/dialogue,
+     *  different label. Personas without nameOptions are returned unchanged. */
     pickN(n){
-      return shuffleArr(registry).slice(0, n);
+      const picked = shuffleArr(registry).slice(0, n);
+      return picked.map(p => {
+        if (!p.nameOptions || !p.nameOptions.length) return p;
+        const opt = p.nameOptions[Math.floor(Math.random() * p.nameOptions.length)];
+        /* Shallow copy with overridden name/tag — original persona object
+           in the registry is not mutated, so the next call rerolls freely. */
+        return Object.assign({}, p, { name: opt.name, tag: opt.tag });
+      });
     },
     /* Test/dev helper. */
     _clear(){ registry.length = 0; for (const k of Object.keys(history)) delete history[k]; }

@@ -201,7 +201,7 @@
     key: 'beta-vs-gamma',
     label: 'ΒΓ Beta-Gamma — Strategist',
     description: 'Specialist tuned by the (1+1)-ES optimizer to beat Gamma-class opponents. Devastating vs Gamma (IQ 124 in that matchup); softer vs Delta (IQ 111 in that matchup).',
-    iq: 111   // measured: 29.4% win rate vs 3 Delta in 5000-game tournament, seed 42
+    iq: 115   // re-measured post-v2.72 (Clubs scoring bug fix): 31.0% vs 3 Delta, 2000 games seed 42. Was 111 pre-fix.
   });
 
   /* Β-Δ Beta-Delta — specialist tuned by the (1+1)-ES optimizer to exploit
@@ -215,7 +215,7 @@
     key: 'beta-vs-delta',
     label: 'ΒΔ Beta-Delta — Strategist',
     description: 'Specialist tuned by the (1+1)-ES optimizer to beat Delta-class opponents. Sharp vs Delta (IQ 131); generic vs Gamma (IQ ~98). Use against tables of weaker opponents.',
-    iq: 131   // measured: 37.2% win rate vs 3 Delta in 8000-game tournament, seed 7777
+    iq: 128   // re-measured post-v2.72 (Clubs scoring bug fix): 36.0% vs 3 Delta, 1000 games seed 42. Was 131 pre-fix.
   });
 
 })();

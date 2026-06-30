@@ -9,7 +9,19 @@
   const R = (window.Rebellion = window.Rebellion || {});
 
   const PERSONAS = [
-    { id:'korben', name:'Trooper Korben', role:'Federation Conscript', color:'#e5564f', tag:'KO',
+    { id:'korben', name:'Trooper Korben', role:'Federation Conscript', color:'#e5564f', tag:'TK',
+      /* Per-game randomized name pool — pickN() resolves one of these to overlay
+         the default name/tag fields before returning the persona. Personality
+         (lines) stays constant; only the seat label varies between games. All
+         Trooper-flavored: short, harsh-consonant Federation surnames. */
+      nameOptions:[
+        {name:'Trooper Korben', tag:'TK'},
+        {name:'Trooper Doss',   tag:'TD'},
+        {name:'Trooper Vren',   tag:'TV'},
+        {name:'Trooper Lask',   tag:'TL'},
+        {name:'Trooper Pell',   tag:'TP'},
+        {name:'Trooper Hask',   tag:'TH'}
+      ],
       lines:{
         start:["Just doing my shift. Try not to make me file a report.","Conscripted, not committed. Let's get this over with.","I'm only here because the alternative was a labour colony."],
         lead:["Following procedure.","Here. Strictly by the book.","Don't read anything into it."],
@@ -26,6 +38,15 @@
       }
     },
     { id:'magda', name:'Magda Voss', role:'Freighter Captain', color:'#3fc1b5', tag:'MV',
+      /* Freighter-captain pool: independent women, cynical trader-type names. */
+      nameOptions:[
+        {name:'Magda Voss',  tag:'MV'},
+        {name:'Vena Sark',   tag:'VS'},
+        {name:'Inga Pell',   tag:'IP'},
+        {name:'Naya Drake',  tag:'ND'},
+        {name:'Sula Quint',  tag:'SQ'},
+        {name:'Petra Maase', tag:'PM'}
+      ],
       lines:{
         start:["Cards on the table, credits in my pocket. Let's go.","I've smuggled worse than this through tighter checkpoints.","Deal me in. I never fold a good margin."],
         lead:["Opening offer.","Let's see what this table's really worth.","Here's my play. Match it if you can."],
@@ -42,6 +63,16 @@
       }
     },
     { id:'senn', name:'Auron Senn', role:'Drifter, ex-Auronar', color:'#9b87d9', tag:'AS',
+      /* Auronar pool: short, melodic given names with the "Auron" patronymic.
+         Patera is canon ("Children of Auron"); the rest are flavor-matched. */
+      nameOptions:[
+        {name:'Auron Senn',   tag:'AS'},
+        {name:'Auron Mial',   tag:'AM'},
+        {name:'Auron Drevan', tag:'AD'},
+        {name:'Auron Cevedj', tag:'AC'},
+        {name:'Auron Liane',  tag:'AL'},
+        {name:'Auron Patera', tag:'AP'}
+      ],
       lines:{
         start:["The pattern of the cards finds itself, eventually.","I see further than this table. It rarely helps.","Sit. The hand you're dealt was always going to be this one."],
         lead:["This was always the next card.","I felt this one coming before I touched it.","Let it fall where it falls."],
@@ -58,6 +89,16 @@
       }
     },
     { id:'tanner', name:'Convict 8-Tanner', role:'Cygnus Alpha Lifer', color:'#d9a441', tag:'CT',
+      /* Cygnus Alpha convict pool — penal-number prefix + surname, matching
+         the "Space Fall" / "Cygnus Alpha" prisoner roster aesthetic. */
+      nameOptions:[
+        {name:'Convict 8-Tanner', tag:'CT'},
+        {name:'Convict 4-Rask',   tag:'CR'},
+        {name:'Convict 12-Drel',  tag:'CD'},
+        {name:'Convict 7-Marin',  tag:'CM'},
+        {name:'Convict 19-Cord',  tag:'CC'},
+        {name:'Convict 23-Voren', tag:'CV'}
+      ],
       lines:{
         start:["Cards. Better than rock-breaking, I'll give you that.","Lifer's got nothing but time. Deal.","Last game I played, the stakes were a lot worse."],
         lead:["There. Try and top it.","Yard rules — no complaining after.","That's how we played it inside."],
@@ -74,6 +115,18 @@
       }
     },
     { id:'reeve', name:'Adjutant Reeve', role:'Federation Records Officer', color:'#6b89a8', tag:'AR',
+      /* Federation bureaucrat pool. Bercol, Joban, Klyn, Rontane, Provine
+         are all canon Federation officials/officers from Blake's 7. Reeve
+         is the original. Title varies — Adjutant, Recorder, Magistrate —
+         the lines work in any of the three roles. */
+      nameOptions:[
+        {name:'Adjutant Reeve',     tag:'AR'},
+        {name:'Adjutant Bercol',    tag:'AB'},
+        {name:'Adjutant Joban',     tag:'AJ'},
+        {name:'Adjutant Klyn',      tag:'AK'},
+        {name:'Recorder Rontane',   tag:'RR'},
+        {name:'Magistrate Provine', tag:'MP'}
+      ],
       lines:{
         start:["Per protocol, the game shall now commence.","I trust everyone has reviewed the applicable regulations.","Let the record show: dealing has begun."],
         lead:["Submitted for review.","As per form 7-B, I lead with this.","Properly filed and played."],
@@ -90,6 +143,17 @@
       }
     },
     { id:'boz', name:'Boz Calder', role:'Black-Market Trader', color:'#7fae6b', tag:'BC',
+      /* Black-market trader pool. Krantor, Largo, Belkov, Bayban are all
+         canon criminals/fixers from Blake's 7. Boz Calder and Tarro Cinder
+         are originals in the same vein. */
+      nameOptions:[
+        {name:'Boz Calder',   tag:'BC'},
+        {name:'Krantor Tal',  tag:'KT'},
+        {name:'Largo Quint',  tag:'LQ'},
+        {name:'Belkov Sade',  tag:'BS'},
+        {name:'Bayban Vex',   tag:'BV'},
+        {name:'Tarro Cinder', tag:'TC'}
+      ],
       lines:{
         start:["Friends! Let's make this interesting.","Everybody's got something to trade. Let's see what.","Deal 'em out — I love a good gamble."],
         lead:["Top THAT, if you can!","Here's my opening bid, friends.","Watch and learn, watch and learn."],
