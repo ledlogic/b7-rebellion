@@ -707,6 +707,11 @@
 
   async function showFinalResults(runMissionFn){
     ensureModalRefs();
+    /* Reveal the header "↻ New Game" button — this is the first moment the
+       game is officially over, and from here on the player should always
+       have an easy path to start a new game even if they close all modals. */
+    const ngBtn = document.getElementById('btn-newgame');
+    if (ngBtn) ngBtn.removeAttribute('hidden');
     const G = S.G;
     let attempts = 0;
     while (attempts < 3){
@@ -718,16 +723,16 @@
       crown.textContent = tied.length > 1 ? '⚖' : '👑';
       modalBox.appendChild(crown);
       const h = document.createElement('h3'); h.style.textAlign = 'center';
-      /* "You is Commander of the Liberator" reads as broken English. Branch
+      /* "You is Hero of the Revolution" reads as broken English. Branch
          on isHuman so we get "You are ..." for the human and "{Name} is ..."
          for AI winners. TODO: confirm the winner title with the latest
          rulebook — this string can be retitled here without touching anything else. */
       if (tied.length > 1){
-        h.textContent = 'Tied for Commander of the Liberator';
+        h.textContent = 'Tied for Hero of the Revolution';
       } else if (sorted[0].isHuman){
-        h.textContent = 'You are Commander of the Liberator!';
+        h.textContent = 'You are Hero of the Revolution!';
       } else {
-        h.textContent = sorted[0].name + ' is Commander of the Liberator!';
+        h.textContent = sorted[0].name + ' is Hero of the Revolution!';
       }
       modalBox.appendChild(h);
       const table = document.createElement('table'); table.className = 'score-table'; table.style.marginTop = '16px';
@@ -773,6 +778,12 @@
     if (sb) sb.addEventListener('click', showScoreboardModal);
     const ex = document.getElementById('btn-export-log');
     if (ex) ex.addEventListener('click', downloadGameLog);
+    /* Header "↻ New Game" button — hidden until showFinalScores() reveals it
+       at game end. Click is a plain page reload: simplest, safest reset and
+       matches the in-modal New Game button. No confirm because the button
+       only appears post-game (no live state to lose at that point). */
+    const ng = document.getElementById('btn-newgame');
+    if (ng) ng.addEventListener('click', () => { location.reload(); });
   }
 
   /* ============================================================ Score history (localStorage) ============================================================
