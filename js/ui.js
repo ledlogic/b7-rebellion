@@ -16,17 +16,20 @@
 
   /* ============================================================ Card rendering ============================================================ */
 
-  /** Look up the AI-tier symbol for a player ('Δ', 'Γ', 'Β', etc.) by reading
-   *  the first character of the registered AI label. Returns empty string for
-   *  humans or unregistered tiers. Used to prefix AI ranks on the table so the
-   *  player can tell which opponent is at which tier when mixing them. */
+  /** Look up the AI-tier symbol for a player ('Δ', 'Γ', 'ΒΓ', 'ΒΔ', etc.) by
+   *  reading the first whitespace-delimited token of the registered AI label.
+   *  Returns empty string for humans or unregistered tiers. Used to prefix
+   *  AI ranks on the table so the player can tell which Beta variant is in
+   *  each seat at a glance. */
   function tierGlyph(player){
-    if (!player || player.isHuman || !player.difficulty) return '';
-    const ai = R.ai && R.ai.get(player.difficulty);
+    if (!player || player.isHuman || !player.aiLevel) return '';
+    const ai = R.ai && R.ai.get(player.aiLevel);
     if (!ai || !ai.label) return '';
-    /* Labels are formatted as "Δ Delta — Conscript" — first char is the glyph. */
-    const first = ai.label.charAt(0);
-    return /[A-Za-z0-9]/.test(first) ? '' : first;
+    /* Labels are formatted as "Δ Delta — Conscript" or "ΒΓ Beta-Gamma —
+       Strategist" — the first word is the glyph. Skip if it starts with
+       an alphanumeric (label format doesn't fit our scheme). */
+    const first = ai.label.split(/\s+/)[0];
+    return /^[A-Za-z0-9]/.test(first) ? '' : first;
   }
 
   function renderCardEl(card, clickable, tiny){
@@ -715,8 +718,17 @@
       crown.textContent = tied.length > 1 ? '⚖' : '👑';
       modalBox.appendChild(crown);
       const h = document.createElement('h3'); h.style.textAlign = 'center';
-      h.textContent = tied.length > 1 ? 'Tied for Commander of the Liberator'
-                                      : sorted[0].name + ' is Commander of the Liberator!';
+      /* "You is Commander of the Liberator" reads as broken English. Branch
+         on isHuman so we get "You are ..." for the human and "{Name} is ..."
+         for AI winners. TODO: confirm the winner title with the latest
+         rulebook — this string can be retitled here without touching anything else. */
+      if (tied.length > 1){
+        h.textContent = 'Tied for Commander of the Liberator';
+      } else if (sorted[0].isHuman){
+        h.textContent = 'You are Commander of the Liberator!';
+      } else {
+        h.textContent = sorted[0].name + ' is Commander of the Liberator!';
+      }
       modalBox.appendChild(h);
       const table = document.createElement('table'); table.className = 'score-table'; table.style.marginTop = '16px';
       table.innerHTML = '<tr><th>Player</th><th>Final Total</th></tr>' +
@@ -877,7 +889,7 @@
         name:        p.name,
         isHuman:     p.isHuman,
         color:       p.color,
-        aiLevel:     p.isHuman ? null : (p.difficulty || null),
+        aiLevel:     p.isHuman ? null : (p.aiLevel || null),
         personaTag:  p.persona ? p.persona.tag  : null,
         personaName: p.persona ? p.persona.name : null,
         personaRole: p.persona ? p.persona.role : null

@@ -14,16 +14,17 @@
  *   --players  P         Seats per game (2..7).            (default: 4)
  *   --seats    L,L,L,L   AI level per seat, comma-list.    (default: all gamma)
  *                        Length must equal --players.
- *                        Each L is one of: delta, gamma
- *   --weights        PATH   Path to GAMMA weights JSON.    (default: js/ai/gamma-weights.json)
- *   --beta-weights   PATH   Path to BETA weights JSON.     (default: js/ai/beta-weights.json)
+ *                        Each L is one of: delta, gamma, beta-vs-delta, beta-vs-gamma
+ *   --weights              PATH   Path to GAMMA weights JSON.            (default: js/ai/gamma-weights.json)
+ *   --beta-vs-delta-weights PATH  Path to Β-Δ weights JSON.              (default: js/ai/beta-vs-delta-weights.json)
+ *   --beta-vs-gamma-weights PATH  Path to Β-Γ weights JSON.              (default: js/ai/beta-vs-gamma-weights.json)
  *   --seed     N         Deterministic RNG seed.           (default: time-based)
  *   --verbose            Print per-game summary lines.
  *   --json                Emit aggregate stats as JSON only (for the optimizer).
  *
  * Example:
  *   node tools/tournament.js --missions 200 --players 4 --seats gamma,delta,delta,delta
- *   node tools/tournament.js --missions 500 --seats beta,beta,gamma,gamma  # Beta vs Gamma bake-off
+ *   node tools/tournament.js --missions 500 --seats beta-vs-gamma,gamma,gamma,gamma  # Beta-Γ vs 3 Gamma
  */
 'use strict';
 
@@ -37,8 +38,9 @@ function parseArgs(argv){
     missions: 50,
     players:  4,
     seats:    null,
-    weights:     path.join(__dirname, '..', 'js', 'ai', 'gamma-weights.json'),
-    betaWeights: path.join(__dirname, '..', 'js', 'ai', 'beta-weights.json'),
+    weights:        path.join(__dirname, '..', 'js', 'ai', 'gamma-weights.json'),
+    betaDWeights:   path.join(__dirname, '..', 'js', 'ai', 'beta-vs-delta-weights.json'),
+    betaGWeights:   path.join(__dirname, '..', 'js', 'ai', 'beta-vs-gamma-weights.json'),
     seed:     null,
     verbose:  false,
     json:     false
@@ -48,8 +50,9 @@ function parseArgs(argv){
     if (a === '--missions') opts.missions = parseInt(argv[++i], 10);
     else if (a === '--players')  opts.players  = parseInt(argv[++i], 10);
     else if (a === '--seats')    opts.seats    = argv[++i].split(',').map(s => s.trim().toLowerCase());
-    else if (a === '--weights')      opts.weights     = argv[++i];
-    else if (a === '--beta-weights') opts.betaWeights = argv[++i];
+    else if (a === '--weights')              opts.weights      = argv[++i];
+    else if (a === '--beta-vs-delta-weights') opts.betaDWeights = argv[++i];
+    else if (a === '--beta-vs-gamma-weights') opts.betaGWeights = argv[++i];
     else if (a === '--seed')     opts.seed     = parseInt(argv[++i], 10);
     else if (a === '--verbose')  opts.verbose  = true;
     else if (a === '--json')     opts.json     = true;
@@ -62,7 +65,9 @@ function parseArgs(argv){
     throw new Error('--seats list (' + opts.seats.length + ') must match --players (' + opts.players + ')');
   }
   for (const s of opts.seats){
-    if (s !== 'delta' && s !== 'gamma' && s !== 'beta') throw new Error('Unknown AI level in --seats: ' + s);
+    if (s !== 'delta' && s !== 'gamma' && s !== 'beta-vs-delta' && s !== 'beta-vs-gamma'){
+      throw new Error('Unknown AI level in --seats: ' + s + ' (expected: delta, gamma, beta-vs-delta, beta-vs-gamma)');
+    }
   }
   return opts;
 }
@@ -257,10 +262,15 @@ async function main(){
     R.ai.get('gamma').setWeights(w);
     if (!opts.json) console.log('[gamma weights] loaded ' + Object.keys(w).length + ' values from ' + path.relative(process.cwd(), opts.weights));
   }
-  if (opts.seats.includes('beta')){
-    const w = JSON.parse(fs.readFileSync(opts.betaWeights, 'utf8'));
-    R.ai.get('beta').setWeights(w);
-    if (!opts.json) console.log('[beta weights]  loaded ' + Object.keys(w).length + ' values from ' + path.relative(process.cwd(), opts.betaWeights));
+  if (opts.seats.includes('beta-vs-delta')){
+    const w = JSON.parse(fs.readFileSync(opts.betaDWeights, 'utf8'));
+    R.ai.get('beta-vs-delta').setWeights(w);
+    if (!opts.json) console.log('[beta-vs-delta weights] loaded ' + Object.keys(w).length + ' values from ' + path.relative(process.cwd(), opts.betaDWeights));
+  }
+  if (opts.seats.includes('beta-vs-gamma')){
+    const w = JSON.parse(fs.readFileSync(opts.betaGWeights, 'utf8'));
+    R.ai.get('beta-vs-gamma').setWeights(w);
+    if (!opts.json) console.log('[beta-vs-gamma weights] loaded ' + Object.keys(w).length + ' values from ' + path.relative(process.cwd(), opts.betaGWeights));
   }
 
   if (!opts.json){
@@ -313,4 +323,14 @@ async function main(){
   }
 }
 
-main().catch(err => { console.error(err.stack || err); process.exit(1); });
+/* ---------------- Module exports (for optimize.js etc.) ----------------
+ * When this file is required as a module rather than run directly, expose
+ * the harness primitives so callers can run their own evaluation loops
+ * (e.g. the (1+1)-ES optimizer) without re-implementing the VM bootstrap. */
+module.exports = {
+  makeRng, loadGameContext, runOneGame, aggregate
+};
+
+if (require.main === module){
+  main().catch(err => { console.error(err.stack || err); process.exit(1); });
+}

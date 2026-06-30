@@ -69,9 +69,35 @@
    * Opponent mix picker — presets row + per-tier counters.
    * AI tier list is built dynamically from R.ai.list() so adding
    * a new tier (alpha later) auto-extends both presets and counters.
+   *
+   * Plus one virtual tier — 'beta-random' — handled at the app layer.
+   * It appears in the picker like any real tier, but at game start each
+   * 'beta-random' seat is independently resolved to either beta-vs-gamma
+   * or beta-vs-delta with 50/50 probability. The seat then plays as that
+   * variant for the whole game so it stays learnable.
    * ============================================================ */
-  const aiList = R.ai.list();           // [delta, gamma, beta] in registration order
-  const aiKeys = aiList.map(a => a.key);
+  const aiList = R.ai.list();                            // [delta, gamma, beta-vs-delta, beta-vs-gamma]
+  const REAL_AI_KEYS = aiList.map(a => a.key);
+
+  /** Virtual-tier metadata. Same shape as an R.ai entry's render-relevant
+   *  fields, so the picker code can treat real and virtual tiers uniformly. */
+  const VIRTUAL_TIERS = [{
+    key:         'beta-random',
+    label:       'ΒΔ/ΒΓ Beta — Random Variant',
+    description: 'Each seat assigned this tier randomly becomes Beta-Delta or Beta-Gamma at game start, then plays as that variant for the whole game.',
+    iq:          'random',                                /* string flags non-numeric formatting */
+    resolveTo:   ['beta-vs-delta', 'beta-vs-gamma']       /* options at resolution time */
+  }];
+
+  const aiKeys = REAL_AI_KEYS.concat(VIRTUAL_TIERS.map(v => v.key));
+
+  /** Combined picker metadata — used for rendering counter rows. Real tiers
+   *  come from R.ai; virtuals from the table above. */
+  function pickerEntry(key){
+    const real = aiList.find(a => a.key === key);
+    if (real) return real;
+    return VIRTUAL_TIERS.find(v => v.key === key);
+  }
 
   /** Current opponent mix — counts per tier. Sums to numOpponents. */
   let chosenMix = Object.fromEntries(aiKeys.map(k => [k, 0]));
@@ -81,16 +107,28 @@
   function mixTotal(){ return aiKeys.reduce((s, k) => s + chosenMix[k], 0); }
 
   /** Distribute n opponents as evenly as possible across the tiers,
-   *  biasing the remainder toward the stronger end (Gamma > Beta > Delta). */
+   *  biasing the remainder toward whichever tiers come first in aiKeys
+   *  (registration order). Works for any tier count. */
   function balancedSplit(n){
     const result = Object.fromEntries(aiKeys.map(k => [k, 0]));
     if (n <= 0) return result;
     const base = Math.floor(n / aiKeys.length);
     let rem = n - base * aiKeys.length;
     for (const k of aiKeys) result[k] = base;
-    /* Bias the remainder toward middle/strong tiers — order: gamma, beta, delta */
-    const bias = ['gamma', 'beta', 'delta'].filter(k => aiKeys.includes(k));
-    for (let i = 0; i < rem; i++) result[bias[i % bias.length]]++;
+    for (let i = 0; i < rem; i++) result[aiKeys[i % aiKeys.length]]++;
+    return result;
+  }
+
+  /** Distribute n opponents across a given list of tiers, evenly. Used by
+   *  presets that target a subset of tiers (e.g. "All Strategists" puts
+   *  opponents in both Β-Δ and Β-Γ in a roughly equal mix). */
+  function distributeAcross(tierList, n){
+    const result = Object.fromEntries(aiKeys.map(k => [k, 0]));
+    if (!tierList || tierList.length === 0 || n <= 0) return result;
+    const base = Math.floor(n / tierList.length);
+    let rem = n - base * tierList.length;
+    for (const t of tierList) result[t] = base;
+    for (let i = 0; i < rem; i++) result[tierList[i % tierList.length]]++;
     return result;
   }
 
@@ -98,9 +136,9 @@
      preset has no distribute function; it's set whenever the user manually
      edits a counter, leaving the current mix as-is. */
   const PRESETS = [
-    { id:'conscripts',  label:'All Δ Conscripts',  distribute:n => ({delta:n, gamma:0, beta:0}) },
-    { id:'officers',    label:'All Γ Officers',    distribute:n => ({delta:0, gamma:n, beta:0}) },
-    { id:'strategists', label:'All Β Strategists', distribute:n => ({delta:0, gamma:0, beta:n}) },
+    { id:'conscripts',  label:'All Δ Conscripts',  distribute:n => distributeAcross(['delta'], n) },
+    { id:'officers',    label:'All Γ Officers',    distribute:n => distributeAcross(['gamma'], n) },
+    { id:'strategists', label:'All Β Strategists', distribute:n => distributeAcross(['beta-vs-delta', 'beta-vs-gamma'], n) },
     { id:'balanced',    label:'Balanced Mix',      distribute:balancedSplit },
     { id:'custom',      label:'Custom',            distribute:null }
   ];
@@ -141,15 +179,20 @@
     presetsRow.appendChild(b);
   }
 
-  /* Build counter rows (once) — labels, IQ badges, +/- buttons */
+  /* Build counter rows (once) — labels, IQ badges, +/- buttons. Real tiers
+     first (registration order), then virtual tiers below. */
   const mixCountersEl = document.getElementById('mix-counters');
-  for (const ai of aiList){
+  for (const ai of aiList.concat(VIRTUAL_TIERS)){
     const row = document.createElement('div'); row.className = 'mix-row'; row.dataset.tier = ai.key;
     const lab = document.createElement('span'); lab.className = 'mix-label'; lab.textContent = ai.label;
     row.appendChild(lab);
     if (typeof ai.iq === 'number'){
       const iq = document.createElement('span'); iq.className = 'mix-iq'; iq.textContent = 'IQ ' + ai.iq;
       iq.title = 'IQ = 100 + (winRate − 1/numPlayers) × 250. Calibrated from headless tournaments.';
+      row.appendChild(iq);
+    } else if (ai.iq === 'random'){
+      const iq = document.createElement('span'); iq.className = 'mix-iq'; iq.textContent = 'IQ 111–131';
+      iq.title = 'Each seat is randomly assigned to Beta-Gamma (IQ 111) or Beta-Delta (IQ 131) at game start.';
       row.appendChild(iq);
     }
     const stp = document.createElement('span'); stp.className = 'mix-stepper';
@@ -212,10 +255,23 @@
   UI.attachUiHandlers();
 
   /** Build the per-seat AI tier list from chosenMix, then shuffle so seat
-   *  order doesn't always run Δ Δ Γ Γ Β Β left-to-right. */
+   *  order doesn't always run Δ Δ Γ Γ ΒΔ ΒΓ left-to-right. Virtual tiers
+   *  like 'beta-random' get expanded here — each instance independently
+   *  resolved to one of its real targets at game-start time. */
   function buildAiTierList(){
     const tiers = [];
-    for (const k of aiKeys) for (let i = 0; i < chosenMix[k]; i++) tiers.push(k);
+    for (const k of aiKeys){
+      const virt = VIRTUAL_TIERS.find(v => v.key === k);
+      for (let i = 0; i < chosenMix[k]; i++){
+        if (virt){
+          /* Independent 50/50 (or even split across resolveTo) per seat. */
+          const pick = virt.resolveTo[Math.floor(Math.random() * virt.resolveTo.length)];
+          tiers.push(pick);
+        } else {
+          tiers.push(k);
+        }
+      }
+    }
     /* Fisher-Yates */
     for (let i = tiers.length - 1; i > 0; i--){
       const j = Math.floor(Math.random() * (i + 1));
@@ -228,9 +284,14 @@
   function describeMix(){
     const used = aiKeys.filter(k => chosenMix[k] > 0);
     if (used.length === 1) return used[0];      // uniform — return tier key
-    /* Mixed — compact label like "Δ2 Γ2 Β2" */
-    const glyph = { delta:'Δ', gamma:'Γ', beta:'Β' };
-    return aiKeys.filter(k => chosenMix[k] > 0).map(k => (glyph[k] || k) + chosenMix[k]).join(' ');
+    /* Mixed — compact label like "Δ2 Γ2 Β2" using each tier's label first-char */
+    function tierGlyph(key){
+      const ai = R.ai.get(key);
+      if (!ai || !ai.label) return key;
+      const first = ai.label.split(/\s+/)[0];
+      return /^[A-Za-z0-9]/.test(first) ? key : first;
+    }
+    return used.map(k => tierGlyph(k) + chosenMix[k]).join(' ');
   }
 
   async function startGameSetup(){

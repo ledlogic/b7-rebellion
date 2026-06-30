@@ -57,24 +57,11 @@
     gamble_capval_threshold: 8
   };
 
-  /** Live weights object. Mutated by setWeights(). Read by chooseCard at call time. */
-  let activeWeights = Object.assign({}, DEFAULT_WEIGHTS);
-
-  /**
-   * Overwrite the active weights. Optimizer / tournament harness calls this
-   * between runs. Unknown keys are kept; missing keys fall back to defaults.
-   * @param {Object} obj
-   */
-  function setWeights(obj){
-    activeWeights = Object.assign({}, DEFAULT_WEIGHTS, obj || {});
-  }
-
-  /** @returns {Object} A copy of the current active weights. */
-  function getWeights(){ return Object.assign({}, activeWeights); }
-
-  function chooseCard(player, legal, trick, ledSuit, isInvasion, ctx){
+  /** Default weights for both variants — used to fill in any keys missing
+   *  from the JSON files loaded at startup. The actual per-variant
+   *  activeWeights lives in the makeVariant closure below. */
+  function chooseCard(W, player, legal, trick, ledSuit, isInvasion, ctx){
     const { basePoints, isJoker, rankValue, RANKS } = ctx.card;
-    const W = activeWeights;
 
     /* ---- knowledge state ---- */
     const seenIds = new Set();
@@ -170,28 +157,65 @@
     return legal[0];
   }
 
-  function chooseZenTarget(player, others, ctx){
+  function chooseZenTarget(W, player, others, ctx){
     /* Prefer unexposed opponent with most cards — max info per peek. */
     const useful = others.filter(p => !p.exposed);
     const pool = useful.length ? useful : others;
     return pool.slice().sort((a, b) => b.hand.length - a.hand.length)[0];
   }
 
-  function choosePickLockTarget(player, others, ctx){
+  function choosePickLockTarget(W, player, others, ctx){
     /* Prefer exposed opponent (known hand → safer choice), then largest hand. */
     const exposed = others.find(p => p.exposed);
     return exposed || others.slice().sort((a, b) => b.hand.length - a.hand.length)[0];
   }
 
-  R.ai.register('beta', {
-    label: 'Β Beta — Strategist',
-    description: 'Gamma-class heuristics with offline-tuned weights. Initially identical to Gamma; diverges as the optimizer runs.',
-    iq: 123,          // currently identical to Gamma (same weights); rerun tournament after tuning to update
-    chooseCard,
-    chooseZenTarget,
-    choosePickLockTarget,
-    setWeights,                      // optimizer calls this between runs
-    getWeights,                      // inspector / debug
-    get weights(){ return activeWeights; }   // legacy back-compat
+  /* ============================================================
+   * Variant factory — each Beta specialist gets its own weights
+   * namespace and registers as its own AI key. Shared chooseCard /
+   * chooseZenTarget / choosePickLockTarget logic above closes over
+   * the W parameter, not a module-level activeWeights — so two
+   * variants live side-by-side without stepping on each other.
+   * ============================================================ */
+  function makeVariant(spec){
+    let activeWeights = Object.assign({}, DEFAULT_WEIGHTS);
+    R.ai.register(spec.key, {
+      label:       spec.label,
+      description: spec.description,
+      iq:          spec.iq,
+      chooseCard:           (p, legal, trick, ledSuit, isInv, ctx) => chooseCard(activeWeights, p, legal, trick, ledSuit, isInv, ctx),
+      chooseZenTarget:      (p, others, ctx) => chooseZenTarget(activeWeights, p, others, ctx),
+      choosePickLockTarget: (p, others, ctx) => choosePickLockTarget(activeWeights, p, others, ctx),
+      setWeights: (obj) => { activeWeights = Object.assign({}, DEFAULT_WEIGHTS, obj || {}); },
+      getWeights: () => Object.assign({}, activeWeights),
+      get weights(){ return activeWeights; }
+    });
+  }
+
+  /* Β-Γ Beta-Gamma — specialist tuned to exploit Gamma-class opponents.
+     Empirical: 34.5% win rate vs 3 Gamma (your 600-gen, 1200-game tune,
+     8000-game validation). Lower 29.4% vs 3 Delta — narrowly specialized.
+     IQ shown here is the vs-Delta measurement so the badge is comparable
+     to Gamma's published 123. */
+  makeVariant({
+    key: 'beta-vs-gamma',
+    label: 'ΒΓ Beta-Gamma — Strategist',
+    description: 'Specialist tuned by the (1+1)-ES optimizer to beat Gamma-class opponents. Devastating vs Gamma (IQ 124 in that matchup); softer vs Delta (IQ 111 in that matchup).',
+    iq: 111   // measured: 29.4% win rate vs 3 Delta in 5000-game tournament, seed 42
   });
+
+  /* Β-Δ Beta-Delta — specialist tuned by the (1+1)-ES optimizer to exploit
+     Delta-class opponents. Found rational refinements rather than degenerate
+     strategies (unlike Beta-Gamma): more cautious about Star One (penalty
+     150 → 290), more willing to gamble (threshold 8 → 4), values diamond
+     powers more (4 → 8). Empirical: 37.2% win rate vs 3 Delta (your
+     8000-game validation). Plays Gamma-like against Gamma (IQ ~98 there)
+     — so loses to Beta-Gamma whose whole purpose is exploiting Gamma. */
+  makeVariant({
+    key: 'beta-vs-delta',
+    label: 'ΒΔ Beta-Delta — Strategist',
+    description: 'Specialist tuned by the (1+1)-ES optimizer to beat Delta-class opponents. Sharp vs Delta (IQ 131); generic vs Gamma (IQ ~98). Use against tables of weaker opponents.',
+    iq: 131   // measured: 37.2% win rate vs 3 Delta in 8000-game tournament, seed 7777
+  });
+
 })();

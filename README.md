@@ -3,29 +3,36 @@ A trick-taking card game for 2–7 players inspired by Blake's 7. Race to rescue
 
 ## AI difficulty tiers
 
-The Federation drafts opponents from four skill grades. Three are shipped; one is on the roadmap.
+The Federation drafts opponents from five skill grades. Four are shipped; one is on the roadmap.
 
 | Tier | Role | IQ | Approach | Progress | Status |
 |---|---|---|---|---|---|
-| **Δ Delta**  | Conscript     | **92**  | One-card heuristic, no memory                                | `██████████` 100% | shipped     |
-| **Γ Gamma**  | Officer       | **123** | Card counting + void tracking + capture-value evaluation     | `██████████` 100% | shipped     |
-| **Β Beta**   | Strategist    | **123** | Gamma-class heuristics with offline-tuned weights loaded from `js/ai/beta-weights.json` (currently identical to Gamma) | `█████░░░░░` 50%  | scaffolded — awaits optimizer |
-| **Α Alpha**  | Supreme Cmdr  | **~145**| Lookahead search (PIMC / ISMCTS) over hidden-information game tree | `░░░░░░░░░░` 0%   | not started |
+| **Δ Delta**       | Conscript     | **92**  | One-card heuristic, no memory                                | `██████████` 100% | shipped     |
+| **Γ Gamma**       | Officer       | **123** | Card counting + void tracking + capture-value evaluation     | `██████████` 100% | shipped     |
+| **Β-Γ Beta-Gamma**| Strategist    | **111** | Specialist — weights tuned by (1+1)-ES to exploit Gamma-class opponents. **IQ 124 vs Gamma**, **IQ 111 vs Delta**. Devastating against Gamma but generalizes poorly. | `██████████` 100% | shipped — tuned 2026-06-28 (600 gens × 1200 games) |
+| **Β-Δ Beta-Delta**| Strategist    | **131** | Specialist — weights tuned by (1+1)-ES to exploit Delta-class opponents. **IQ 131 vs Delta**, **IQ ~98 vs Gamma** (plays Gamma-like in that matchup). Found rational refinements rather than degenerate strategies. | `██████████` 100% | shipped — tuned 2026-06-28 (600 gens × 1200 games) |
+| **Α Alpha**       | Supreme Cmdr  | **~145**| Lookahead search (PIMC / ISMCTS) over hidden-information game tree | `░░░░░░░░░░` 0%   | not started |
 
-IQ scores are empirically calibrated from headless-tournament results using:
+Published IQs are calibrated to the **vs-Delta** matchup so all tiers are comparable:
 ```
-IQ = 100 + (winRate − 1/numPlayers) × 250
+IQ = 100 + (winRate_vs_3_Delta − 1/numPlayers) × 250
 ```
-So 100 = baseline competence (winning exactly the share you'd expect by chance), 130+ = strong play, sub-100 = below baseline. Delta's 21.9% win rate against Gamma in 4-player → IQ 92; Gamma's 34.2% → IQ 123. Beta inherits Gamma's number until its weights are tuned. Alpha's 145 is a projection based on typical lookahead-vs-heuristic gaps in similar trick-taking games; will be re-measured when shipped.
+Beta-Gamma's 111 reflects its measured 29.4% win rate vs 3 Delta — better than baseline, worse than Gamma's 34.2% (123). The variant *exists* because at the table it's a 124-IQ monster against any Gamma in the seat. The right Beta for a given table depends on who else is playing.
 
-**Overall AI roadmap: 62%** &nbsp;`██████░░░░` &nbsp; 2.5 of 4 difficulty tiers complete.
+**Why two Beta variants?** The optimizer discovered non-transitive play strength: a weight set that crushes Gamma can play *worse* than Gamma against Delta. Rather than averaging that out into a mediocre generalist, we keep specialists — and future work will grade live opponents to know which variant to deploy. Tuning Beta-Delta against Delta will produce a third weight set; if Beta-Delta has a corresponding "vs Gamma" weakness, the picture becomes a rock-paper-scissors of specialists.
 
-Beta ships with weights identical to Gamma so a fresh install plays the same — its slot exists so an offline optimizer can populate `beta-weights.json` with empirically-tuned values, then Beta diverges from Gamma in measurable ways. Both Gamma and Beta verified to play correctly in 2/3/4/5/7-player smoke tests.
+**Overall AI roadmap: 80%** &nbsp;`████████░░` &nbsp; 4 of 5 difficulty tiers fully shipped; Alpha remains as the lookahead-search frontier.
 
 ## Changelog
 
 | Version | Date | Changes |
 |---|---|---|
+| **2.64** | 2026-06-28 | **Fix "You is Commander of the Liberator" grammar.** The win-line in `ui.js#showFinalScores` did `sorted[0].name + ' is Commander of the Liberator!'` for the singular case, but `name === 'You'` for the human player → reads as broken English. Branched on `isHuman`: human winner gets `"You are Commander of the Liberator!"`, AI winner gets `"{Name} is Commander of the Liberator!"`, ties still get `"Tied for Commander of the Liberator"`. Title string left unchanged pending rulebook reconfirmation. |
+| **2.63** | 2026-06-28 | **Distinct two-character Beta glyphs + random-Beta picker option.** Two related changes: **(1)** Compact Beta labels in `js/ai/beta.js` from `"Β-Γ Beta-Gamma — Strategist"` to `"ΒΓ Beta-Gamma — Strategist"` (and the matching ΒΔ). `tierGlyph()` in `ui.js` and the matching helper in `app.js#describeMix()` now read the first whitespace-delimited token instead of just the first character, so Δ/Γ stay one-char and the two Betas become `ΒΓ` / `ΒΔ`. At the table, each opponent's role line now reads e.g. `"ΒΓ Federation Records Officer"` vs `"ΒΔ Federation Records Officer"` — telling the two variants apart at a glance. **(2)** New virtual tier `beta-random` registered at the app layer (not in `R.ai` since it has no chooseCard of its own). Appears in the mix picker as `"ΒΔ/ΒΓ Beta — Random Variant"` with an "IQ 111–131" badge. At game start, `buildAiTierList()` independently resolves each `beta-random` seat to either `beta-vs-gamma` or `beta-vs-delta` with 50/50 probability, then locks for the whole game so the player can learn each seat's behavior. The `chosenMix` retained as the user-intent record (3 random Betas) while per-seat `aiLevel` reflects the resolved real tier. `aiKeys` now includes virtual tiers; `pickerEntry(key)` helper looks up real or virtual. Other counters/presets continue to work over `REAL_AI_KEYS`-only as needed. |
+| **2.62** | 2026-06-28 | **Beta-Δ now tuned and shipped.** Replaced the scaffolded seed weights with the user's 600-gen × 1200-game optimizer output (993.8s on their machine), validated at 37.2% win rate vs 3 Delta on 8000 games seed 7777 → **IQ 131**. The tuning produced rational refinements rather than degenerate strategies (unlike Beta-Γ): `lead_star_one_penalty: 150 → 290` (more cautious), `gamble_capval_threshold: 8 → 4` (more willing to gamble), `capval_diamond_power_bonus: 4 → 8` (values diamond powers more), `lead_heart_bias: 60 → 34` (slightly less heart-fearing). Updated `beta.js` IQ field from placeholder 123 to measured 131. Sandbox cross-matchup analysis revealed the full rock-paper-scissors picture: Beta-Δ wins vs Delta (36.5% in 2000-game sandbox check), ties Gamma (24.3% vs 3 Gamma — basically Gamma-like, no advantage there), and *loses* to Beta-Γ (21.2% vs 3 Beta-Γ — because Beta-Γ specifically exploits Gamma-like play, which is what Beta-Δ exhibits outside its specialty). README AI tier table updated; overall AI roadmap now at 80% with only Alpha (lookahead) remaining. |
+| **2.61** | 2026-06-28 | **Beta split into two specialist variants** — Β-Γ Beta-Gamma and Β-Δ Beta-Delta — each registered as its own AI tier with its own weights file. Refactored `js/ai/beta.js` to use a factory: shared `chooseCard` / `chooseZenTarget` / `choosePickLockTarget` implementations now take `W` as first arg; each variant has its own `activeWeights` closure inside `makeVariant()`. Two AI keys, one source of truth. **Β-Γ Beta-Gamma** ships with the user's tuned weights from the 600-gen × 1200-game optimizer run on 2026-06-28 — IQ 124 vs Gamma, IQ 111 vs Delta (the apples-to-apples published number). The wild weights are an interesting artifact: `lead_heart_bias: 60 → 171684`, `lead_servalan_penalty: 200 → -273`, `capval_servalan_in_trick: -8 → +25.43` — a Gamma-exploiter, not a generalist. **Β-Δ Beta-Delta** is scaffolded with Gamma's seed weights, awaiting `node tools/optimize.js --tier beta-vs-delta --vs delta`. Tournament harness updated: `--seats` accepts `beta-vs-delta` and `beta-vs-gamma`, new `--beta-vs-delta-weights` / `--beta-vs-gamma-weights` CLI flags, default paths derive from tier name. Optimizer gained a `--tier` flag to target either variant (default beta-vs-gamma). Old `js/ai/beta-weights.json` removed. The two variants reproduce the user's measured numbers in the sandbox (35.8% vs 3 Gamma at seed 7777, 29.9% vs 3 Delta at seed 42). Player-grading feature deferred to a follow-up version — eventually the game will assess live opponents and pick the right Beta variant per seat. |
+| **2.60** | 2026-06-28 | **Fix tier glyph not appearing** + **fix exported aiLevel always null**. Both bugs from the same root cause: I used `player.difficulty` in v2.58 (tier glyph helper) and earlier in `buildGameLogJson` (export schema), but `state.js#newPlayer` actually stores the AI tier as `player.aiLevel`. So `tierGlyph()` always returned `''` (no glyph rendered), and exported JSON had `aiLevel: null` for every AI player since v2.46. Game-wide `G.difficulty` was unaffected — that's a separate string set at startup. Verified by inspecting an actual seat HTML the user shared — the role div was rendering `"Federation Records Officer"` with no Γ prefix despite the player being a Gamma. Both call sites now correctly read `p.aiLevel`. |
+| **2.59** | 2026-06-28 | **Beta-weights optimizer (tools/optimize.js).** New (1+1)-ES optimizer with the 1/5 success rule and Common Random Numbers for variance reduction. Tunes `js/ai/beta-weights.json` by evolving Beta against a fixed opponent lineup (Gamma by default). Refactored `tools/tournament.js` to expose `makeRng`, `loadGameContext`, `runOneGame`, `aggregate` as module exports so `optimize.js` can drive the harness directly without spawning subprocesses or re-implementing the VM bootstrap. CLI flags: `--generations`, `--games-per-eval`, `--vs`, `--sigma`, `--validate`, etc. Validates the result on a fresh-seed clean tournament after optimization to confirm improvements aren't seed-overfit. Sandbox demo (60 gens × 200 games) produced a small but real ~1 pp Beta win-rate improvement, validating the machinery. Real tuning is best run on a fast machine — at 1272 games/sec, 500 gens × 800 games/eval finishes in ~10 minutes. `beta-weights.json` not yet committed with optimized values; tuning is left for the user to run with their preferred parameters. README gained a *Beta-weights optimizer* section with full usage docs. |
 | **2.58** | 2026-06-28 | **AI tier glyph shown in opponent seats.** With mixed AI lineups it wasn't possible to tell at the table which opponent was at which tier — the seat just showed the persona role ("WARRANT OFFICER"). New `tierGlyph(player)` helper in `ui.js` reads the first character of the AI's registered label (`'Δ'`, `'Γ'`, `'Β'`) and the seat header now renders the role as `"Γ WARRANT OFFICER"` for an AI player. Applied in three places: the opponent seat header (the main one), the scoreboard modal row, and the chat tooltip on each comms line. Human players continue to show no prefix. Pure display change. |
 | **2.57** | 2026-06-28 | **Orac scoring note now names the specific card and owner.** Was vague ("Adjutant Reeve uses Orac (A♦) to cancel a person card this Mission. (See comms log for which card.)") because `powerOracCancel` did its own comms-log line but didn't tell the scoring code what it picked. Fixed by making `powerOracCancel` return its `{card, owner}` pick (or `null` if skipped/no targets). The Step 1 loop in `scoreMission` now uses that to build a detailed note matching the IMIPAK format: `"Adjutant Reeve uses Orac (A♦) to cancel A♥ (Avon) in YOUR captured cards — scores 0."` The comms-log line is unchanged. |
 | **2.56** | 2026-06-28 | **Opponent-mix section locked until player count chosen.** The Federation Skill Grade section was visible from initial page load even though presets and counters couldn't do anything sensible without a player count. Added a `.locked` class to the section (initial state in HTML), styled with `opacity:0.42`, `pointer-events:none`, and `filter:saturate(0.4)` plus a 🔒 glyph appended to the title. First click on any player-count button removes the `.locked` class and re-applies the current preset to redistribute the mix across the now-known opponent count. UX-only change. |
@@ -69,6 +76,49 @@ Beta ships with weights identical to Gamma so a fresh install plays the same —
 | **2.03** | Subject-verb agreement helpers (`subj`, `verbFor`, `possessiveOf`) applied across all 14+ message sites — "You win the trick", "You have Avon", "You destroy the Reserve", "your pile", "your hand", etc. |
 | **2.02** | AI difficulty tier progress diagram added to README (Markdown-rendered table with Unicode progress bars). |
 | **2.01** | Initial v2 label set after the v3 modular architecture stabilized; CSS extracted to `css/app.css`; entry-point renamed `main.js` → `app.js`. |
+
+## Beta-weights optimizer
+
+`tools/optimize.js` tunes `js/ai/beta-weights.json` against the tournament harness as a fitness function. Algorithm: **(1+1)-ES with the 1/5 success rule** plus **Common Random Numbers** for variance reduction.
+
+Each generation, the optimizer:
+1. Generates a child by Gaussian-perturbing each of Beta's 18 weights (σ scaled per-weight by |w|)
+2. Evaluates parent and child on the **same** random seed — paired comparison eliminates most of the game-stochasticity noise
+3. If child ≥ parent, child takes over
+4. Every 10 generations, adapts σ: success rate > 1/5 → σ grows by 1.22×; < 1/5 → σ shrinks by 0.82×
+
+After all generations, a large clean tournament on a fresh seed validates the improvement isn't seed-overfit, then the weights are written to disk.
+
+**Run on your machine:**
+
+```
+node tools/optimize.js --generations 500 --games-per-eval 800 --validate 5000
+```
+
+At ~1272 games/sec, that's roughly 500 gens × 800 games × 2 evals/gen = 800,000 games for the search (~10 min) plus 5,000 for validation (~4 sec). The progress prints generation-by-generation so you can watch σ adapt and best fitness climb.
+
+**Options:**
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--generations N` | 100 | Number of mutation/selection cycles |
+| `--games-per-eval N` | 300 | Games each parent/child evaluation runs. More = less noise, more compute |
+| `--vs LEVEL` | gamma | Opponent tier Beta is evaluated against (delta/gamma/beta) |
+| `--players N` | 4 | Total seats |
+| `--start-weights PATH` | js/ai/beta-weights.json | Initial parent |
+| `--output PATH` | js/ai/beta-weights.json | Where to write the tuned result |
+| `--sigma N` | 0.10 | Initial step-size multiplier of \|weight\| |
+| `--base-seed N` | 1 | First generation's CRN seed |
+| `--validate N` | 2000 | Post-search clean tournament size |
+| `--no-validate` | — | Skip the validation tournament |
+
+**Practical notes:**
+
+- **Noise floor matters.** With 200 games/eval the standard error on win rate is ~3 pp — bigger than the differences we're chasing. Use 500–1000 games/eval for confident signal.
+- **Common Random Numbers help a lot.** Both parent and child play the same dealings each generation, so the *difference* in win rate is much cleaner than each absolute value.
+- **σ should grow if exploration is fruitful, shrink near optima.** Watch the `-- adapt:` lines: success rates settling near 20% mean you're converging.
+- **Validate against the opponent you care about.** Tuning vs Gamma optimizes for beating Gamma; tuning vs Delta produces a different solution. For overall strength, a mixed opponent field is most robust but expensive.
+- **The IQ field in `js/ai/beta.js` is hand-edited** after a tuning run — re-run a clean tournament with `--seats beta,delta,delta,delta` (or whatever your reference is), compute `IQ = 100 + (winRate − 1/numPlayers) × 250`, paste into the registration.
 
 ## Replay viewer
 
