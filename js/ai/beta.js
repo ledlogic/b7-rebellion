@@ -201,7 +201,7 @@
     key: 'beta-vs-gamma',
     label: 'ΒΓ Beta-Gamma — Strategist',
     description: 'Specialist tuned by the (1+1)-ES optimizer to beat Gamma-class opponents. Devastating vs Gamma (IQ 124 in that matchup); softer vs Delta (IQ 111 in that matchup).',
-    iq: 115   // re-measured post-v2.72 (Clubs scoring bug fix): 31.0% vs 3 Delta, 2000 games seed 42. Was 111 pre-fix.
+    iq: 124   // post-v2.77 re-tune: 34.4% vs 3 Gamma in 8000g/seed-7777 (Beta-Γ's specialty matchup, +6 IQ recovered past pre-Vila 122). Apples-to-apples vs 3 Delta: 29.1% = IQ 110 (down 5 from pre-re-tune). Classic specialist tradeoff — sharper vs Gamma at cost of generality.
   });
 
   /* Β-Δ Beta-Delta — specialist tuned by the (1+1)-ES optimizer to exploit
@@ -215,7 +215,7 @@
     key: 'beta-vs-delta',
     label: 'ΒΔ Beta-Delta — Strategist',
     description: 'Specialist tuned by the (1+1)-ES optimizer to beat Delta-class opponents. Sharp vs Delta (IQ 131); generic vs Gamma (IQ ~98). Use against tables of weaker opponents.',
-    iq: 128   // re-measured post-v2.72 (Clubs scoring bug fix): 36.0% vs 3 Delta, 1000 games seed 42. Was 131 pre-fix.
+    iq: 142   // post-v2.77 re-tune: 41.7% vs 3 Delta in 8000-game validation, seed 7777. Was 127 pre-re-tune. The +15 IQ came from `gamble_vila_threshold` dropping to 1.99 (use Vila on any positive trick) and `gamble_capval_threshold` dropping to 0.17 (gamble for any positive trick). Note: in mixed-field play, Gamma still outperforms Beta-Δ — the IQ is a vs-3-Delta specialist measure.
   });
 
 })();

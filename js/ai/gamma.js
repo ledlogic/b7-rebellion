@@ -46,7 +46,16 @@
 
     /* Gamble threshold: take the highest-follower long-shot only if the
        captureValue at stake is at least this big. */
-    gamble_capval_threshold: 8
+    gamble_capval_threshold: 8,
+
+    /* Vila threshold: wild-play Vila (the Joker) to guarantee winning a
+       trick when captureValue meets this bar. Vila is +10 itself when
+       captured, so playing it nets `captureValue + 10` minus the
+       opportunity cost of saving it for a future trick. Higher = more
+       hoarding (save for the perfect moment); lower = more aggressive
+       (use it earlier). Used in two sites: FOLLOW when no safe-winning
+       follower exists, and SLUFF when void in led suit. */
+    gamble_vila_threshold: 15
   };
 
   /** Live weights object. Mutated by setWeights(). Read by chooseCard at call time. */
@@ -131,6 +140,7 @@
     if (trick.some(p => isJoker(p.card))) captureValue += W.capval_joker_bonus;
     if (isInvasion) captureValue += W.capval_invasion_bias;
 
+    const hasVila = legal.some(isJoker);
     const followers = legal.filter(c => !isJoker(c) && c.suit === ledSuit);
     if (followers.length > 0){
       followers.sort((a, b) => rankValue(a.rank) - rankValue(b.rank));
@@ -141,6 +151,13 @@
       if (captureValue > 0){
         const safeWinners = followers.filter(c => rankValue(c.rank) > Math.max(trickTop, futureTop));
         if (safeWinners.length > 0) return safeWinners[0];           // lowest guaranteed winner
+
+        /* No safe-winning follower. If trick value is high enough,
+           wild-play Vila to guarantee the steal — Vila beats anything. */
+        if (hasVila && captureValue >= W.gamble_vila_threshold){
+          return legal.find(isJoker);
+        }
+
         const gambleWinners = followers.filter(c => rankValue(c.rank) > trickTop);
         if (gambleWinners.length > 0 && captureValue >= W.gamble_capval_threshold){
           return gambleWinners[gambleWinners.length-1];               // gamble high for big prizes
@@ -154,6 +171,11 @@
     }
 
     /* ---- SLUFF — dump most-negative card on the capturer ---- */
+    /* Void in led suit. If trick has high positive value and Vila is in hand,
+       wild-play Vila to steal it instead of giving away a negative card. */
+    if (hasVila && captureValue >= W.gamble_vila_threshold){
+      return legal.find(isJoker);
+    }
     const nonJoker = legal.filter(c => !isJoker(c));
     if (nonJoker.length > 0){
       nonJoker.sort((a, b) => basePoints(a) - basePoints(b));
@@ -178,7 +200,7 @@
   R.ai.register('gamma', {
     label: 'Γ Gamma — Officer',
     description: 'Tracks every play, counts what is still out, exploits known voids.',
-    iq: 115,          // re-measured post-v2.72 (Clubs scoring bug fix): 31.1% vs 3 Delta, 1000 games seed 42. Was 123 pre-fix.
+    iq: 133,          // re-measured post-v2.75 (Vila wild-play): 38.3% vs 3 Delta in 8000-game tournament, seed 42. Was 115 pre-Vila-fix. Note: head-to-head, Beta-Δ still beats Gamma (33.4% vs 28.9% in 4-way mixed) — IQ measures vs-Delta only.
     chooseCard,
     chooseZenTarget,
     choosePickLockTarget,

@@ -1,24 +1,21 @@
 {
-  "lead_heart_bias":    60,
-  "lead_diamond_bias":  20,
-  "lead_club_bias":    -25,
-  "lead_spade_bias":   -30,
-
-  "lead_heart_rank_mult":    1,
-  "lead_diamond_rank_mult":  0.5,
-  "lead_club_rank_mult":     2,
-  "lead_spade_rank_mult":    2,
-
-  "lead_star_one_penalty":   150,
-  "lead_servalan_penalty":   200,
-  "lead_joker_penalty":      1000,
-  "lead_basepoints_tiebreak":0.1,
-
-  "capval_star_one_in_trick":  -4,
-  "capval_servalan_in_trick":  -8,
+  "lead_heart_bias": 60,
+  "lead_diamond_bias": 20,
+  "lead_club_bias": -25,
+  "lead_spade_bias": -30,
+  "lead_heart_rank_mult": 1,
+  "lead_diamond_rank_mult": 0.5,
+  "lead_club_rank_mult": 2,
+  "lead_spade_rank_mult": 2,
+  "lead_star_one_penalty": 150,
+  "lead_servalan_penalty": 200,
+  "lead_joker_penalty": 1000,
+  "lead_basepoints_tiebreak": 0.1,
+  "capval_star_one_in_trick": -4,
+  "capval_servalan_in_trick": -8,
   "capval_diamond_power_bonus": 4,
-  "capval_joker_bonus":         3,
-  "capval_invasion_bias":       7,
-
-  "gamble_capval_threshold": 8
+  "capval_joker_bonus": 3,
+  "capval_invasion_bias": 7,
+  "gamble_capval_threshold": 8,
+  "gamble_vila_threshold": 15
 }

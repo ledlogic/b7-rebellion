@@ -742,7 +742,7 @@
       const tied = sorted.filter(p => G.totals[p.idx] === top);
       modalBox.innerHTML = '';
       const crown = document.createElement('div'); crown.className = 'crown';
-      crown.textContent = tied.length > 1 ? '⚖' : '👑';
+      crown.textContent = tied.length > 1 ? '⚖' : '✊';
       modalBox.appendChild(crown);
       const h = document.createElement('h3'); h.style.textAlign = 'center';
       /* "You is Hero of the Revolution" reads as broken English. Branch
